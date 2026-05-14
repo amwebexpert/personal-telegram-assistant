@@ -91,7 +91,7 @@ const runAgent = async (prompt: string): Promise<string> => {
   return response || '(no response)';
 };
 
-type Callback = (
+type BotCallback = (
   msg: TelegramBot.Message,
   match: RegExpExecArray | null,
 ) => void;
@@ -140,14 +140,14 @@ const main = (): void => {
   const bot = new TelegramBot(env.TELEGRAM_BOT_TOKEN, { polling: true });
   console.info('Bot started.');
 
-  const onStart: Callback = (msg) => {
+  const onStart: BotCallback = (msg) => {
     void bot.sendMessage(
       msg.chat.id,
       "Hi André, I'm your assistant. Send me a message.",
     );
   };
 
-  const onReset: Callback = (msg) => {
+  const onReset: BotCallback = (msg) => {
     void (async () => {
       await clearSession(SESSION_FILE);
       await bot.sendMessage(msg.chat.id, 'Session cleared.');
