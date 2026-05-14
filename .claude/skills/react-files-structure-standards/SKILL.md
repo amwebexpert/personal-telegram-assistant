@@ -1,17 +1,17 @@
 ---
 name: react-files-structure-standards
-description: "Enforces file and folder naming and structure standards for React/TypeScript projects. Use when normalizing file/folder names, auditing project structure, renaming files or directories, or when the user asks to align file/folder naming with standards."
-metadata:
-  keywords: "files, folders, kebab-case, structure, naming, React, TypeScript, normalize"
+description: "This skill should be used when the user asks to \"normalize file names\", \"rename files to kebab-case\", \"audit folder structure\", \"align file names with standards\", \"fix file naming conventions\", or \"rename directories\" in a React/TypeScript project."
+version: 1.0.0
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # React files & folder structure standards
 
-This skill applies **file and folder** naming and structure standards. It focuses solely on paths, directory layout, and file naming (suffixes/prefixes by intent). For in-code naming (variables, booleans, etc.), use [react-coding-standards](skills/react-coding-standards/SKILL.md).
+This skill applies **file and folder** naming and structure standards. It focuses solely on paths, directory layout, and file naming (suffixes/prefixes by intent). For in-code naming (variables, booleans, etc.), use [react-coding-standards](../react-coding-standards/SKILL.md).
 
 ## Reference
 
-Standards are defined in the `references/` folder. Load this file when you need the exact Avoid/Prefer rules and examples:
+Standards are defined in the `references/` folder. Load when needed for the exact Avoid/Prefer rules and examples:
 
 | Category              | File                                                                                   | Scope                                           |
 | --------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------- |
