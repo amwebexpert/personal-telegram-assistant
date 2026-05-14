@@ -1,0 +1,1 @@
+Your job is to analyse git staged files, summarize their changes description, and create a semantic commit. Once the commit is done push that change.
