@@ -1,5 +1,6 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { query } from '@anthropic-ai/claude-agent-sdk';
+import { marked } from 'marked';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
@@ -7,6 +8,38 @@ import 'dotenv/config';
 
 const SESSION_FILE = path.join(os.homedir(), '.config', 'telegram-assistant', 'session.json');
 const MAX_LEN = 4096;
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function toTelegramHtml(markdown: string): string {
+  const html = marked.parse(markdown) as string;
+  return html
+    // headings → bold
+    .replace(/<h[1-6][^>]*>/gi, '<b>')
+    .replace(/<\/h[1-6]>/gi, '</b>\n\n')
+    // paragraphs
+    .replace(/<p>/gi, '')
+    .replace(/<\/p>/gi, '\n\n')
+    // list items
+    .replace(/<li>/gi, '• ')
+    .replace(/<\/li>/gi, '\n')
+    // strip ul/ol wrapper tags
+    .replace(/<\/?[uo]l[^>]*>/gi, '\n')
+    // hr and br
+    .replace(/<hr\s*\/?>/gi, '───────────\n\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    // normalize strong/em to b/i (Telegram supports both but let's be safe)
+    .replace(/<strong>/gi, '<b>').replace(/<\/strong>/gi, '</b>')
+    .replace(/<em>/gi, '<i>').replace(/<\/em>/gi, '</i>')
+    // strip any remaining tags not in Telegram's allowed set
+    // allowed: b, i, u, ins, s, strike, del, code, pre, a, blockquote
+    .replace(/<(?!\/?(b|i|u|ins|s|strike|del|code|pre|a|blockquote)[\s>\/])[^>]+>/gi, '')
+    // collapse 3+ blank lines
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 async function loadSessionId(): Promise<string | undefined> {
   try {
@@ -116,21 +149,23 @@ async function main() {
 
     try {
       const response = await runAgent(msg.text);
-      const chunks = splitMessage(response);
+      const chunks = splitMessage(toTelegramHtml(response));
 
       await bot.editMessageText(chunks[0], {
         chat_id: chatId,
         message_id: thinkingMsg.message_id,
+        parse_mode: 'HTML',
       });
 
       for (const chunk of chunks.slice(1)) {
-        await bot.sendMessage(chatId, chunk);
+        await bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
       }
     } catch (error) {
       console.error('Agent error:', error);
+      const errText = escapeHtml(error instanceof Error ? error.message : String(error));
       await bot.editMessageText(
-        `Error: ${error instanceof Error ? error.message : String(error)}`,
-        { chat_id: chatId, message_id: thinkingMsg.message_id },
+        `Error: ${errText}`,
+        { chat_id: chatId, message_id: thinkingMsg.message_id, parse_mode: 'HTML' },
       );
     }
   });
