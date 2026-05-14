@@ -1,6 +1,40 @@
+import { promises as fs } from 'fs';
 import { marked } from 'marked';
+import path from 'path';
 
 const MAX_LEN = 4096;
+
+export const loadSessionId = async (
+  fullPath: string,
+): Promise<string | undefined> => {
+  try {
+    const raw: unknown = JSON.parse(await fs.readFile(fullPath, 'utf-8'));
+    if (raw && typeof raw === 'object' && 'sessionId' in raw) {
+      const sid = Reflect.get(raw, 'sessionId');
+      if (typeof sid === 'string') return sid;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+interface SaveSessionIdArgs {
+  fullPath: string;
+  sessionId: string;
+}
+
+export const saveSessionId = async ({
+  fullPath,
+  sessionId,
+}: SaveSessionIdArgs): Promise<void> => {
+  await fs.mkdir(path.dirname(fullPath), { recursive: true });
+  await fs.writeFile(fullPath, JSON.stringify({ sessionId }));
+};
+
+export const clearSession = async (fullPath: string): Promise<void> => {
+  await fs.rm(fullPath, { force: true });
+};
 
 export const escapeHtml = (text: string): string =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

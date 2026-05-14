@@ -1,11 +1,17 @@
-import TelegramBot from 'node-telegram-bot-api';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { promises as fs } from 'fs';
-import path from 'path';
-import os from 'os';
-import { z } from 'zod';
 import 'dotenv/config';
-import { escapeHtml, toTelegramHtml, splitMessage } from './telegram-bot.utils';
+import TelegramBot from 'node-telegram-bot-api';
+import os from 'os';
+import path from 'path';
+import { z } from 'zod';
+import {
+  clearSession,
+  escapeHtml,
+  loadSessionId,
+  saveSessionId,
+  splitMessage,
+  toTelegramHtml,
+} from './telegram-bot.utils';
 
 const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(1),
@@ -21,28 +27,6 @@ const SESSION_FILE = path.join(
   'telegram-assistant',
   'session.json',
 );
-
-const loadSessionId = async (): Promise<string | undefined> => {
-  try {
-    const raw: unknown = JSON.parse(await fs.readFile(SESSION_FILE, 'utf-8'));
-    if (raw && typeof raw === 'object' && 'sessionId' in raw) {
-      const sid = Reflect.get(raw, 'sessionId');
-      if (typeof sid === 'string') return sid;
-    }
-    return undefined;
-  } catch {
-    return undefined;
-  }
-};
-
-const saveSessionId = async (sessionId: string): Promise<void> => {
-  await fs.mkdir(path.dirname(SESSION_FILE), { recursive: true });
-  await fs.writeFile(SESSION_FILE, JSON.stringify({ sessionId }));
-};
-
-const clearSession = async (): Promise<void> => {
-  await fs.rm(SESSION_FILE, { force: true });
-};
 
 interface McpServerEntry {
   type: 'stdio';
@@ -77,7 +61,7 @@ const buildMcpServers = (): McpServersConfig => ({
 });
 
 const runAgent = async (prompt: string): Promise<string> => {
-  const sessionId = await loadSessionId();
+  const sessionId = await loadSessionId(SESSION_FILE);
 
   const agentQuery = query({
     prompt,
@@ -102,74 +86,80 @@ const runAgent = async (prompt: string): Promise<string> => {
     }
   }
 
-  if (newSessionId) await saveSessionId(newSessionId);
+  if (newSessionId)
+    await saveSessionId({ fullPath: SESSION_FILE, sessionId: newSessionId });
   return response || '(no response)';
 };
 
-const runAsyncHandler =
-  (
-    fn: (msg: TelegramBot.Message) => Promise<void>,
-  ): ((msg: TelegramBot.Message) => void) =>
-  (msg: TelegramBot.Message): void => {
-    void fn(msg);
-  };
+type Callback = (
+  msg: TelegramBot.Message,
+  match: RegExpExecArray | null,
+) => void;
+
+interface HandleMessageArgs {
+  bot: TelegramBot;
+  msg: TelegramBot.Message;
+}
+
+const handleMessage = async ({
+  bot,
+  msg,
+}: HandleMessageArgs): Promise<void> => {
+  if (!msg.text || msg.text.startsWith('/')) return;
+  const chatId = msg.chat.id;
+
+  const thinkingMsg = await bot.sendMessage(chatId, 'thinking...');
+
+  try {
+    const response = await runAgent(msg.text);
+    const chunks = splitMessage(toTelegramHtml(response));
+
+    await bot.editMessageText(chunks[0], {
+      chat_id: chatId,
+      message_id: thinkingMsg.message_id,
+      parse_mode: 'HTML',
+    });
+
+    for (const chunk of chunks.slice(1)) {
+      await bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
+    }
+  } catch (error) {
+    console.error('Agent error:', error);
+    const errText = escapeHtml(
+      error instanceof Error ? error.message : String(error),
+    );
+    await bot.editMessageText(`Error: ${errText}`, {
+      chat_id: chatId,
+      message_id: thinkingMsg.message_id,
+      parse_mode: 'HTML',
+    });
+  }
+};
 
 const main = (): void => {
   const bot = new TelegramBot(env.TELEGRAM_BOT_TOKEN, { polling: true });
   console.info('Bot started.');
 
-  bot.onText(
-    /\/start/,
-    runAsyncHandler(async (msg) => {
-      await bot.sendMessage(
-        msg.chat.id,
-        "Hi André, I'm your assistant. Send me a message.",
-      );
-    }),
-  );
+  const onStart: Callback = (msg) => {
+    void bot.sendMessage(
+      msg.chat.id,
+      "Hi André, I'm your assistant. Send me a message.",
+    );
+  };
 
-  bot.onText(
-    /\/reset/,
-    runAsyncHandler(async (msg) => {
-      await clearSession();
+  const onReset: Callback = (msg) => {
+    void (async () => {
+      await clearSession(SESSION_FILE);
       await bot.sendMessage(msg.chat.id, 'Session cleared.');
-    }),
-  );
+    })();
+  };
 
-  bot.on(
-    'message',
-    runAsyncHandler(async (msg) => {
-      if (!msg.text || msg.text.startsWith('/')) return;
-      const chatId = msg.chat.id;
+  bot.onText(/\/start/, onStart);
+  bot.onText(/\/reset/, onReset);
 
-      const thinkingMsg = await bot.sendMessage(chatId, 'thinking...');
-
-      try {
-        const response = await runAgent(msg.text);
-        const chunks = splitMessage(toTelegramHtml(response));
-
-        await bot.editMessageText(chunks[0], {
-          chat_id: chatId,
-          message_id: thinkingMsg.message_id,
-          parse_mode: 'HTML',
-        });
-
-        for (const chunk of chunks.slice(1)) {
-          await bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
-        }
-      } catch (error) {
-        console.error('Agent error:', error);
-        const errText = escapeHtml(
-          error instanceof Error ? error.message : String(error),
-        );
-        await bot.editMessageText(`Error: ${errText}`, {
-          chat_id: chatId,
-          message_id: thinkingMsg.message_id,
-          parse_mode: 'HTML',
-        });
-      }
-    }),
-  );
+  bot.on('message', (msg) => {
+    void handleMessage({ bot, msg });
+  });
 
   bot.on('polling_error', (error) => console.error('Polling error:', error));
 };
