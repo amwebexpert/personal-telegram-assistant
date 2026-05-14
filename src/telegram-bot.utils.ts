@@ -39,6 +39,9 @@ export const clearSession = async (fullPath: string): Promise<void> => {
 export const escapeHtml = (text: string): string =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+export const trunc = (text: string): string =>
+  text.length > 100 ? `${text.slice(0, 100)}...` : text;
+
 export const toTelegramHtml = (markdown: string): string => {
   const parsed = marked.parse(markdown);
   const html = typeof parsed === 'string' ? parsed : '';

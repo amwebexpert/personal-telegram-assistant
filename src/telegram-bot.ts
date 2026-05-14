@@ -1,4 +1,5 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
+import { logger } from '@lichens-innovation/ts-common/logger';
 import 'dotenv/config';
 import TelegramBot from 'node-telegram-bot-api';
 import os from 'os';
@@ -11,6 +12,7 @@ import {
   saveSessionId,
   splitMessage,
   toTelegramHtml,
+  trunc,
 } from './telegram-bot.utils';
 
 const envSchema = z.object({
@@ -108,10 +110,12 @@ const handleMessage = async ({
   if (!msg.text || msg.text.startsWith('/')) return;
   const chatId = msg.chat.id;
 
+  logger.info(trunc(`→ ${msg.text}`));
   const thinkingMsg = await bot.sendMessage(chatId, 'thinking...');
 
   try {
     const response = await runAgent(msg.text);
+    logger.info(trunc(`← ${response}`));
     const chunks = splitMessage(toTelegramHtml(response));
 
     await bot.editMessageText(chunks[0], {
@@ -124,7 +128,7 @@ const handleMessage = async ({
       await bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
     }
   } catch (error) {
-    console.error('Agent error:', error);
+    logger.error('Agent error', { error: String(error) });
     const errText = escapeHtml(
       error instanceof Error ? error.message : String(error),
     );
@@ -138,7 +142,7 @@ const handleMessage = async ({
 
 const main = (): void => {
   const bot = new TelegramBot(env.TELEGRAM_BOT_TOKEN, { polling: true });
-  console.info('Bot started.');
+  logger.info('Bot started.');
 
   const onStart: BotCallback = (msg) => {
     void bot.sendMessage(
@@ -161,11 +165,13 @@ const main = (): void => {
     void handleMessage({ bot, msg });
   });
 
-  bot.on('polling_error', (error) => console.error('Polling error:', error));
+  bot.on('polling_error', (error) =>
+    logger.error('Polling error', { error: String(error) }),
+  );
 };
 
 try {
   main();
 } catch (error) {
-  console.error(error);
+  logger.fatal('Fatal error', { error: String(error) });
 }
