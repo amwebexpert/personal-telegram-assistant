@@ -212,7 +212,7 @@ export const clearSession = async (fullPath: string): Promise<void> => {
 };
 
 export const trunc = (text: string): string =>
-  text.length > 100 ? `${text.slice(0, 100)}...` : text;
+  text.length > 120 ? `${text.slice(0, 120)}…` : text;
 
 export const toTelegramMarkdownV2 = (markdown: string): string => {
   const rendered = renderTokens(marked.lexer(markdown));

@@ -1,4 +1,5 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
+import { getErrorMessage } from '@lichens-innovation/ts-common';
 import { logger } from '@lichens-innovation/ts-common/logger';
 import 'dotenv/config';
 import TelegramBot from 'node-telegram-bot-api';
@@ -62,7 +63,7 @@ const buildMcpServers = (): McpServersConfig => ({
   },
 });
 
-const runAgent = async (prompt: string): Promise<string> => {
+const askClaudeAgent = async (prompt: string): Promise<string> => {
   const sessionId = await loadSessionId(SESSION_FILE);
 
   const agentQuery = query({
@@ -73,7 +74,7 @@ const runAgent = async (prompt: string): Promise<string> => {
       permissionMode: 'bypassPermissions',
       cwd: os.homedir(),
       systemPrompt:
-        "You are André's personal assistant. Be concise and direct. Skip pleasantries.",
+        "You are André's personal assistant. Be concise and direct. Use the most appropriate emoji.",
       mcpServers: buildMcpServers(),
     },
   });
@@ -111,10 +112,10 @@ const handleMessage = async ({
   const chatId = msg.chat.id;
 
   logger.info(trunc(`→ ${msg.text}`));
-  const thinkingMsg = await bot.sendMessage(chatId, 'thinking...');
+  const thinkingMsg = await bot.sendMessage(chatId, 'Let me think about it…');
 
   try {
-    const response = await runAgent(msg.text);
+    const response = await askClaudeAgent(msg.text);
     logger.info(trunc(`← ${response}`));
     const chunks = splitMessage(toTelegramMarkdownV2(response));
 
@@ -127,11 +128,11 @@ const handleMessage = async ({
     for (const chunk of chunks.slice(1)) {
       await bot.sendMessage(chatId, chunk, { parse_mode: 'MarkdownV2' });
     }
-  } catch (error) {
-    logger.error('Agent error', { error: String(error) });
-    const errText = escapeMarkdownV2(
-      error instanceof Error ? error.message : String(error),
-    );
+  } catch (e: unknown) {
+    const error = getErrorMessage(e);
+    logger.error('Agent error', { error });
+
+    const errText = escapeMarkdownV2(error);
     await bot.editMessageText(`Error: ${errText}`, {
       chat_id: chatId,
       message_id: thinkingMsg.message_id,
@@ -144,35 +145,32 @@ const main = (): void => {
   const bot = new TelegramBot(env.TELEGRAM_BOT_TOKEN, { polling: true });
   logger.info('Bot started.');
 
-  const onStart: BotCallback = (msg) => {
-    void bot.sendMessage(
-      msg.chat.id,
-      "Hi André, I'm your assistant. Send me a message.",
-    );
-  };
-
-  const onReset: BotCallback = (msg) => {
+  const onReset: BotCallback = (msg: TelegramBot.Message) => {
     void (async () => {
       await clearSession(SESSION_FILE);
       await bot.sendMessage(msg.chat.id, 'Session cleared.');
     })();
   };
 
-  bot.onText(/\/start/, onStart);
   bot.onText(/\/clear/, onReset);
   bot.onText(/\/reset/, onReset);
+
+  bot.onText(/\/start/, (msg: TelegramBot.Message) => {
+    void bot.sendMessage(msg.chat.id, "Yo André, I'm your assistant.");
+  });
 
   bot.on('message', (msg) => {
     void handleMessage({ bot, msg });
   });
 
-  bot.on('polling_error', (error) =>
-    logger.error('Polling error', { error: String(error) }),
+  bot.on('polling_error', (error: Error) =>
+    logger.error('Polling error', { error: getErrorMessage(error) }),
   );
 };
 
 try {
   main();
-} catch (error) {
-  logger.fatal('Fatal error', { error: String(error) });
+} catch (e: unknown) {
+  const error = getErrorMessage(e);
+  logger.fatal('Fatal error', { error });
 }
