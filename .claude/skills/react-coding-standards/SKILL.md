@@ -1,8 +1,8 @@
 ---
 name: react-coding-standards
-description: "Enforces internal React and TypeScript coding standards using avoid/prefer rules. Use when reviewing or refactoring React/TS code, applying company standards, or when the user asks to align code with coding standards."
-metadata:
-  keywords: "avoid, prefer, React, TypeScript, naming, patterns, tests, lint, Vitest, ESLint, interface, type guards, isNullish, isBlank, useToggle, named exports"
+description: "This skill should be used when the user asks to \"apply coding standards\", \"check for violations\", \"review React or TypeScript patterns\", \"align code with company standards\", \"fix avoid/prefer rules\", \"enforce naming rules\", or \"audit test patterns\" in React/TypeScript code."
+version: 1.0.0
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 
 # React & TypeScript coding standards
@@ -15,7 +15,7 @@ When resolving standards, use this order:
 
 1. **Project tooling**: ESLint config (`eslint.config.js` / `.eslintrc*`), TypeScript config (`tsconfig.json`, `tsconfig.app.json`). Run `yarn lint` or `npm run lint`; fix auto-fixable issues first.
 2. **Rule references** in `references/` (see Reference categories below) for the canonical Avoid/Prefer matrix.
-3. **Worked examples** in `coding-examples/` for concrete before/after snippets and explanations.
+3. **Worked examples** in `examples/` for concrete before/after snippets and explanations.
 4. **Reference codebase** (if provided): e.g. a frontend app under the same org — use it to infer naming, structure, and patterns (hooks returning data only, `FunctionComponent` + destructured props, `*.utils.ts` / `*.store.ts`, test style with Vitest or Jest).
 
 ## Reference categories
@@ -23,27 +23,27 @@ When resolving standards, use this order:
 Standards are split between:
 
 - `references/` for the canonical Avoid/Prefer rules.
-- `coding-examples/` for detailed examples and rationale.
+- `examples/` for detailed examples and rationale.
 
 Load both when needed:
 
 - **TypeScript coding patterns**
   - Rules: [`references/react-typescript.md`](references/react-typescript.md)
-  - Examples: [`coding-examples/react-typescript.md`](coding-examples/react-typescript.md)
+  - Examples: [`examples/react-typescript.md`](examples/react-typescript.md)
 - **React component patterns**
   - Rules: [`references/react-components.md`](references/react-components.md)
-  - Examples: [`coding-examples/react-components.md`](coding-examples/react-components.md)
+  - Examples: [`examples/react-components.md`](examples/react-components.md)
 - **Naming conventions**
   - Rules: [`references/react-naming.md`](references/react-naming.md)
   - Examples: no dedicated file yet (use rule file and codebase patterns)
 - **Testing patterns**
   - Rules: [`references/react-tests.md`](references/react-tests.md)
-  - Examples: [`coding-examples/react-tests.md`](coding-examples/react-tests.md)
+  - Examples: [`examples/react-tests.md`](examples/react-tests.md)
 - **Security patterns**
   - Rules: [`references/react-security.md`](references/react-security.md)
-  - Examples: [`coding-examples/react-security.md`](coding-examples/react-security.md)
+  - Examples: [`examples/react-security.md`](examples/react-security.md)
 
-## Three-phase workflow
+## Two-phase workflow
 
 When the skill is invoked on code (selected files, git staged files, branch):
 
@@ -61,7 +61,7 @@ When the skill is invoked on code (selected files, git staged files, branch):
 
 1. For **each** violation in the report:
    - Open the corresponding rule file in `references/` and find the **Prefer** section paired with that Avoid rule.
-   - If needed, open the matching file in `coding-examples/` to align on exact implementation style.
+   - If needed, open the matching file in `examples/` to align on exact implementation style.
    - Apply the recommended correction so the code follows the Prefer pattern.
 2. **Preserve** business logic and behavior; only change structure, naming, or patterns.
 3. **Prefer minimal edits**: one logical change per violation, no unnecessary rewrites.
