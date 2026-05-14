@@ -50,7 +50,8 @@ function buildMcpServers() {
     googleCalendar: {
       type: 'stdio' as const,
       command: 'npx',
-      args: ['-y', '@cocal/google-calendar-mcp'],
+      // @cocal/google-calendar-mcp depends on ajv-formats without declaring ajv; plain `npx -y` crashes.
+      args: ['-y', '-p', 'ajv@8', '-p', '@cocal/google-calendar-mcp', 'google-calendar-mcp'],
       env: { GOOGLE_OAUTH_CREDENTIALS: googleCreds },
     },
     gmail: {

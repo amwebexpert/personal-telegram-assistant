@@ -33,9 +33,27 @@ Sign up at [app.tavily.com](https://app.tavily.com) and copy your API key.
 3. Enable **Google Calendar API** and **Gmail API**
 4. Go to **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**
 5. Application type: **Desktop app**
-6. Download the JSON file and save it (e.g. `~/.config/telegram-assistant/gcp-oauth.keys.json`)
+6. Download the JSON file and save it as `/Users/your-username/.gmail-mcp/gcp-oauth.keys.json` (replace `your-username` with your macOS login name; create the `.gmail-mcp` folder first if it does not exist).
+7. **GMail First time only:** complete Gmail OAuth from the terminal (opens a browser once):
 
-> On first run, both the Calendar and Gmail MCP servers will open a browser window for OAuth. Tokens are stored locally afterwards.
+   ```bash
+   npx @gongrzhe/server-gmail-autoauth-mcp auth
+   ```
+
+8. After a successful login, confirm that `credentials.json` was created in the same `.gmail-mcp` directory as your OAuth client file (for example `/Users/your-username/.gmail-mcp/credentials.json`, or `ls ~/.gmail-mcp/`).
+
+9. **Google Calendar — first time only:** complete Calendar OAuth from the terminal (opens a browser once). Use the **same absolute path** as your downloaded `gcp-oauth.keys.json` (the example below matches step 6; adjust if you stored the file elsewhere):
+
+   ```bash
+   GOOGLE_OAUTH_CREDENTIALS=/Users/your-username/.gmail-mcp/gcp-oauth.keys.json npx -p ajv@8 -p @cocal/google-calendar-mcp google-calendar-mcp auth
+   ```
+
+   After a successful login, you should see:
+
+   ```
+   Loaded tokens for normal account
+   Authentication successful.
+   ```
 
 ### 5. Configure environment
 
@@ -48,7 +66,7 @@ Fill in `.env`:
 ```
 TELEGRAM_BOT_TOKEN=your_token_here
 TAVILY_API_KEY=your_key_here
-GOOGLE_OAUTH_CREDENTIALS_PATH=/Users/you/.config/telegram-assistant/gcp-oauth.keys.json
+GOOGLE_OAUTH_CREDENTIALS_PATH=/Users/your-username/.gmail-mcp/gcp-oauth.keys.json
 ```
 
 ### 6. Run
