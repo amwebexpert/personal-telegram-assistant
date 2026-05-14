@@ -6,44 +6,64 @@ import path from 'path';
 import os from 'os';
 import 'dotenv/config';
 
-const SESSION_FILE = path.join(os.homedir(), '.config', 'telegram-assistant', 'session.json');
+const SESSION_FILE = path.join(
+  os.homedir(),
+  '.config',
+  'telegram-assistant',
+  'session.json',
+);
 const MAX_LEN = 4096;
 
 function escapeHtml(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function toTelegramHtml(markdown: string): string {
   const html = marked.parse(markdown) as string;
-  return html
-    // headings → bold
-    .replace(/<h[1-6][^>]*>/gi, '<b>')
-    .replace(/<\/h[1-6]>/gi, '</b>\n\n')
-    // paragraphs
-    .replace(/<p>/gi, '')
-    .replace(/<\/p>/gi, '\n\n')
-    // list items
-    .replace(/<li>/gi, '• ')
-    .replace(/<\/li>/gi, '\n')
-    // strip ul/ol wrapper tags
-    .replace(/<\/?[uo]l[^>]*>/gi, '\n')
-    // hr and br
-    .replace(/<hr\s*\/?>/gi, '───────────\n\n')
-    .replace(/<br\s*\/?>/gi, '\n')
-    // normalize strong/em to b/i (Telegram supports both but let's be safe)
-    .replace(/<strong>/gi, '<b>').replace(/<\/strong>/gi, '</b>')
-    .replace(/<em>/gi, '<i>').replace(/<\/em>/gi, '</i>')
-    // strip any remaining tags not in Telegram's allowed set
-    // allowed: b, i, u, ins, s, strike, del, code, pre, a, blockquote
-    .replace(/<(?!\/?(b|i|u|ins|s|strike|del|code|pre|a|blockquote)[\s>\/])[^>]+>/gi, '')
-    // collapse 3+ blank lines
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  return (
+    html
+      // headings → bold
+      .replace(/<h[1-6][^>]*>/gi, '<b>')
+      .replace(/<\/h[1-6]>/gi, '</b>\n\n')
+      // paragraphs
+      .replace(/<p>/gi, '')
+      .replace(/<\/p>/gi, '\n\n')
+      // list items
+      .replace(/<li>/gi, '• ')
+      .replace(/<\/li>/gi, '\n')
+      // strip ul/ol wrapper tags
+      .replace(/<\/?[uo]l[^>]*>/gi, '\n')
+      // hr and br
+      .replace(/<hr\s*\/?>/gi, '───────────\n\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      // normalize strong/em to b/i (Telegram supports both but let's be safe)
+      .replace(/<strong>/gi, '<b>')
+      .replace(/<\/strong>/gi, '</b>')
+      .replace(/<em>/gi, '<i>')
+      .replace(/<\/em>/gi, '</i>')
+      // strip any remaining tags not in Telegram's allowed set
+      // allowed: b, i, u, ins, s, strike, del, code, pre, a, blockquote
+      .replace(
+        /<(?!\/?(b|i|u|ins|s|strike|del|code|pre|a|blockquote)[\s>/])[^>]+>/gi,
+        '',
+      )
+      // collapse 3+ blank lines
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  );
 }
 
 async function loadSessionId(): Promise<string | undefined> {
   try {
-    return JSON.parse(await fs.readFile(SESSION_FILE, 'utf-8')).sessionId;
+    const raw: unknown = JSON.parse(await fs.readFile(SESSION_FILE, 'utf-8'));
+    if (raw && typeof raw === 'object' && 'sessionId' in raw) {
+      const sid = Reflect.get(raw, 'sessionId');
+      if (typeof sid === 'string') return sid;
+    }
+    return undefined;
   } catch {
     return undefined;
   }
@@ -84,7 +104,14 @@ function buildMcpServers() {
       type: 'stdio' as const,
       command: 'npx',
       // @cocal/google-calendar-mcp depends on ajv-formats without declaring ajv; plain `npx -y` crashes.
-      args: ['-y', '-p', 'ajv@8', '-p', '@cocal/google-calendar-mcp', 'google-calendar-mcp'],
+      args: [
+        '-y',
+        '-p',
+        'ajv@8',
+        '-p',
+        '@cocal/google-calendar-mcp',
+        'google-calendar-mcp',
+      ],
       env: { GOOGLE_OAUTH_CREDENTIALS: googleCreds },
     },
     gmail: {
@@ -106,7 +133,8 @@ async function runAgent(prompt: string): Promise<string> {
       resume: sessionId,
       permissionMode: 'bypassPermissions',
       cwd: os.homedir(),
-      systemPrompt: "You are André's personal assistant. Be concise and direct. Skip pleasantries.",
+      systemPrompt:
+        "You are André's personal assistant. Be concise and direct. Skip pleasantries.",
       mcpServers: buildMcpServers(),
     },
   });
@@ -125,52 +153,77 @@ async function runAgent(prompt: string): Promise<string> {
   return response || '(no response)';
 }
 
-async function main() {
+function runAsyncHandler(fn: (msg: TelegramBot.Message) => Promise<void>) {
+  return (msg: TelegramBot.Message): void => {
+    void fn(msg);
+  };
+}
+
+function main() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) throw new Error('TELEGRAM_BOT_TOKEN is required');
 
   const bot = new TelegramBot(token, { polling: true });
   console.log('Bot started.');
 
-  bot.onText(/\/start/, async (msg) => {
-    await bot.sendMessage(msg.chat.id, "Hi André, I'm your assistant. Send me a message.");
-  });
-
-  bot.onText(/\/reset/, async (msg) => {
-    await clearSession();
-    await bot.sendMessage(msg.chat.id, 'Session cleared.');
-  });
-
-  bot.on('message', async (msg) => {
-    if (!msg.text || msg.text.startsWith('/')) return;
-    const chatId = msg.chat.id;
-
-    const thinkingMsg = await bot.sendMessage(chatId, 'thinking...');
-
-    try {
-      const response = await runAgent(msg.text);
-      const chunks = splitMessage(toTelegramHtml(response));
-
-      await bot.editMessageText(chunks[0], {
-        chat_id: chatId,
-        message_id: thinkingMsg.message_id,
-        parse_mode: 'HTML',
-      });
-
-      for (const chunk of chunks.slice(1)) {
-        await bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
-      }
-    } catch (error) {
-      console.error('Agent error:', error);
-      const errText = escapeHtml(error instanceof Error ? error.message : String(error));
-      await bot.editMessageText(
-        `Error: ${errText}`,
-        { chat_id: chatId, message_id: thinkingMsg.message_id, parse_mode: 'HTML' },
+  bot.onText(
+    /\/start/,
+    runAsyncHandler(async (msg) => {
+      await bot.sendMessage(
+        msg.chat.id,
+        "Hi André, I'm your assistant. Send me a message.",
       );
-    }
-  });
+    }),
+  );
+
+  bot.onText(
+    /\/reset/,
+    runAsyncHandler(async (msg) => {
+      await clearSession();
+      await bot.sendMessage(msg.chat.id, 'Session cleared.');
+    }),
+  );
+
+  bot.on(
+    'message',
+    runAsyncHandler(async (msg) => {
+      if (!msg.text || msg.text.startsWith('/')) return;
+      const chatId = msg.chat.id;
+
+      const thinkingMsg = await bot.sendMessage(chatId, 'thinking...');
+
+      try {
+        const response = await runAgent(msg.text);
+        const chunks = splitMessage(toTelegramHtml(response));
+
+        await bot.editMessageText(chunks[0], {
+          chat_id: chatId,
+          message_id: thinkingMsg.message_id,
+          parse_mode: 'HTML',
+        });
+
+        for (const chunk of chunks.slice(1)) {
+          await bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
+        }
+      } catch (error) {
+        console.error('Agent error:', error);
+        const errText = escapeHtml(
+          error instanceof Error ? error.message : String(error),
+        );
+        await bot.editMessageText(`Error: ${errText}`, {
+          chat_id: chatId,
+          message_id: thinkingMsg.message_id,
+          parse_mode: 'HTML',
+        });
+      }
+    }),
+  );
 
   bot.on('polling_error', (error) => console.error('Polling error:', error));
 }
 
-main().catch(console.error);
+try {
+  main();
+} catch (error) {
+  console.error(error);
+}
