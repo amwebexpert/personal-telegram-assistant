@@ -1,11 +1,8 @@
 ---
 name: react-single-responsibility
-description: "Strategies to simplify components, hooks, and methods: decomposition order (utilities, hooks, sub-components), early returns, control flow, parameter design, and code smell fixes. Use when the user says: ungodify this method/function/component, simplify this method/function/component, make this method/function/component less complex; or when refactoring a large component, hook, or function, reducing complexity, applying single responsibility, or asking how to simplify a component, hook, or method."
-metadata:
-  version: "1.0.0"
-  last-updated: "2026-02-26"
-  source: "Extracted from react-ts-guidelines"
-allowed-tools: Read, Write, Edit, Grep, Glob
+description: "This skill should be used when the user says \"ungodify this component\", \"simplify this method\", \"make this less complex\", \"refactor this hook\", \"apply single responsibility\", \"reduce complexity\", or asks how to simplify a component, hook, or function."
+version: 1.0.0
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 
 # Single Responsibility — Simplify Components & Methods
@@ -152,3 +149,13 @@ Only apply in **`*.ts`** (plain functions) → threshold **40 lines**.
 - [ ] Copy-pasted code? → extract and parameterize.
 - [ ] Control flow deeply nested? → use early returns and intermediate variables.
 - [ ] Comments explaining _what_? → rename for self-documenting code; keep comments for _why_ only.
+
+---
+
+## Examples
+
+Concrete before/after code for each target type:
+
+- **[`examples/simplify-component.md`](examples/simplify-component.md)** — God Component → utilities + hook + sub-component
+- **[`examples/simplify-hook.md`](examples/simplify-hook.md)** — broad hook → specialized focused hooks
+- **[`examples/simplify-method.md`](examples/simplify-method.md)** — long function + multiple params → extracted named functions + params object
