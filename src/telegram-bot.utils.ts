@@ -1,6 +1,181 @@
 import { promises as fs } from 'fs';
-import { marked } from 'marked';
+import { Token, Tokens, marked } from 'marked';
 import path from 'path';
+
+const escapeUrl = (url: string): string => url.replace(/[)\\]/g, '\\$&');
+
+export const escapeMarkdownV2 = (text: string): string =>
+  text.replace(/[_*[\]()~`>#+=|{}.!\-\\]/g, '\\$&');
+
+const renderTokens = (tokens: Token[]): string =>
+  tokens.map(renderToken).join('');
+
+const EMPTY_HEADER_CELL: Tokens.TableCell = {
+  text: '',
+  tokens: [],
+  header: true,
+  align: null,
+};
+
+const EMPTY_BODY_CELL: Tokens.TableCell = {
+  text: '',
+  tokens: [],
+  header: false,
+  align: null,
+};
+
+const getCellText = (cell: Tokens.TableCell): string => cell.text;
+
+interface PadCellArgs {
+  text: string;
+  width: number;
+  align: Tokens.TableCell['align'];
+}
+
+const padCell = ({ text, width, align }: PadCellArgs): string => {
+  if (align === 'right') return text.padStart(width);
+  if (align === 'center') {
+    const total = width - text.length;
+    return (
+      ' '.repeat(Math.floor(total / 2)) +
+      text +
+      ' '.repeat(Math.ceil(total / 2))
+    );
+  }
+  return text.padEnd(width);
+};
+
+interface BuildSepCellArgs {
+  width: number;
+  align: Tokens.TableCell['align'];
+}
+
+const buildSepCell = ({ width, align }: BuildSepCellArgs): string => {
+  if (align === 'center') return ':' + '-'.repeat(Math.max(1, width - 2)) + ':';
+  if (align === 'right') return '-'.repeat(Math.max(1, width - 1)) + ':';
+  return '-'.repeat(width);
+};
+
+interface FmtTableRowArgs {
+  cells: Tokens.TableCell[];
+  colWidths: number[];
+  aligns: Tokens.TableCell['align'][];
+}
+
+const fmtTableRow = ({ cells, colWidths, aligns }: FmtTableRowArgs): string => {
+  const paddedCells = colWidths.map((width, i) =>
+    padCell({
+      text: getCellText(cells[i] ?? EMPTY_BODY_CELL),
+      width,
+      align: aligns[i],
+    }),
+  );
+  const rowInner = paddedCells.join(' | ');
+  return `| ${rowInner} |`;
+};
+
+interface BuildSepRowArgs {
+  colWidths: number[];
+  aligns: Tokens.TableCell['align'][];
+}
+
+const buildSepRow = ({ colWidths, aligns }: BuildSepRowArgs): string => {
+  const sepCells = colWidths.map((width, i) =>
+    buildSepCell({ width, align: aligns[i] }),
+  );
+  const rowInner = sepCells.join(' | ');
+  return `| ${rowInner} |`;
+};
+
+const renderTable = (token: Tokens.Table): string => {
+  const colCount = token.header.length;
+
+  const colWidths = Array.from({ length: colCount }, (_, i) =>
+    Math.max(
+      3,
+      getCellText(token.header[i] ?? EMPTY_HEADER_CELL).length,
+      ...token.rows.map((row) => getCellText(row[i] ?? EMPTY_BODY_CELL).length),
+    ),
+  );
+
+  const aligns = token.align;
+  const headerRow = fmtTableRow({ cells: token.header, colWidths, aligns });
+  const sepRow = buildSepRow({ colWidths, aligns });
+  const bodyRows = token.rows.map((cells) =>
+    fmtTableRow({ cells, colWidths, aligns }),
+  );
+
+  return `\`\`\`\n${[headerRow, sepRow, ...bodyRows].join('\n')}\n\`\`\`\n\n`;
+};
+
+const renderToken = (token: Token): string => {
+  switch (token.type) {
+    case 'space':
+      return '\n';
+    case 'hr':
+      return '────────────\n\n';
+    case 'heading':
+      return `*${renderTokens(token.tokens ?? [])}*\n\n`;
+    case 'code':
+      return `\`\`\`${token.lang ?? ''}\n${token.text}\n\`\`\`\n\n`;
+    case 'blockquote':
+      return (
+        renderTokens(token.tokens ?? [])
+          .trim()
+          .split('\n')
+          .map((line) => `>${line}`)
+          .join('\n') + '\n\n'
+      );
+    case 'list': {
+      const items = token.items as Tokens.ListItem[];
+      return (
+        items
+          .map((item) => `• ${renderTokens(item.tokens ?? []).trim()}\n`)
+          .join('') + '\n'
+      );
+    }
+    case 'paragraph':
+      return `${renderTokens(token.tokens ?? [])}\n\n`;
+    case 'table':
+      return renderTable(token as Tokens.Table);
+    case 'html':
+    case 'tag':
+      return '';
+    case 'text': {
+      const tokens = token.tokens as Token[];
+      return tokens
+        ? renderTokens(token.tokens ?? [])
+        : escapeMarkdownV2(token.text as string);
+    }
+    case 'escape': {
+      const text = token.text as string;
+      return escapeMarkdownV2(text);
+    }
+    case 'strong':
+      return `*${renderTokens(token.tokens ?? [])}*`;
+    case 'em':
+      return `_${renderTokens(token.tokens ?? [])}_`;
+    case 'del':
+      return `~${renderTokens(token.tokens ?? [])}~`;
+    case 'codespan':
+      return `\`${token.text}\``;
+    case 'link': {
+      const tokens = token.tokens as Token[];
+      return tokens
+        ? `[${renderTokens(tokens)}](${escapeUrl(token.href as string)})`
+        : escapeMarkdownV2(token.text as string);
+    }
+    case 'image': {
+      const title = token.title as string;
+      const text = token.text as string;
+      return escapeMarkdownV2(title ?? text);
+    }
+    case 'br':
+      return '\n';
+    default:
+      return '';
+  }
+};
 
 const MAX_LEN = 4096;
 
@@ -36,46 +211,13 @@ export const clearSession = async (fullPath: string): Promise<void> => {
   await fs.rm(fullPath, { force: true });
 };
 
-export const escapeHtml = (text: string): string =>
-  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
 export const trunc = (text: string): string =>
   text.length > 100 ? `${text.slice(0, 100)}...` : text;
 
-export const toTelegramHtml = (markdown: string): string => {
-  const parsed = marked.parse(markdown);
-  const html = typeof parsed === 'string' ? parsed : '';
-  return (
-    html
-      // headings → bold
-      .replace(/<h[1-6][^>]*>/gi, '<b>')
-      .replace(/<\/h[1-6]>/gi, '</b>\n\n')
-      // paragraphs
-      .replace(/<p>/gi, '')
-      .replace(/<\/p>/gi, '\n\n')
-      // list items
-      .replace(/<li>/gi, '• ')
-      .replace(/<\/li>/gi, '\n')
-      // strip ul/ol wrapper tags
-      .replace(/<\/?[uo]l[^>]*>/gi, '\n')
-      // hr and br
-      .replace(/<hr\s*\/?>/gi, '───────────\n\n')
-      .replace(/<br\s*\/?>/gi, '\n')
-      // normalize strong/em to b/i (Telegram supports both but let's be safe)
-      .replace(/<strong>/gi, '<b>')
-      .replace(/<\/strong>/gi, '</b>')
-      .replace(/<em>/gi, '<i>')
-      .replace(/<\/em>/gi, '</i>')
-      // strip any remaining tags not in Telegram's allowed set
-      // allowed: b, i, u, ins, s, strike, del, code, pre, a, blockquote
-      .replace(
-        /<(?!\/?(b|i|u|ins|s|strike|del|code|pre|a|blockquote)[\s>/])[^>]+>/gi,
-        '',
-      )
-      // collapse 3+ blank lines
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
-  );
+export const toTelegramMarkdownV2 = (markdown: string): string => {
+  const rendered = renderTokens(marked.lexer(markdown));
+  const normalized = rendered.replace(/\n{3,}/g, '\n\n');
+  return normalized.trim();
 };
 
 export const splitMessage = (text: string): string[] => {

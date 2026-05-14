@@ -50,6 +50,7 @@ paths:
 | `import _ from "lodash"` whole-package default import | `import { groupBy } from "lodash-es"` named tree-shakeable import |
 | `console.log(...)` calls in production code paths | Structured `logger.info(...)` with explicit safe fields |
 | `user?.address?.location?.city` dangling deep optional chain | `user?.address?.location?.city ?? "Unknown"` ending with a `?? fallback` |
+| Implicit `=>` return over several lines that stitches string concat or templates with chained array methods (e.g. `.map` then `.join`) without naming results | Braced `{ ... }` body with one named `const` per step, then a final `return` |
 
 ## LOW
 

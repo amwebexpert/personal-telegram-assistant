@@ -7,11 +7,11 @@ import path from 'path';
 import { z } from 'zod';
 import {
   clearSession,
-  escapeHtml,
+  escapeMarkdownV2,
   loadSessionId,
   saveSessionId,
   splitMessage,
-  toTelegramHtml,
+  toTelegramMarkdownV2,
   trunc,
 } from './telegram-bot.utils';
 
@@ -116,26 +116,26 @@ const handleMessage = async ({
   try {
     const response = await runAgent(msg.text);
     logger.info(trunc(`← ${response}`));
-    const chunks = splitMessage(toTelegramHtml(response));
+    const chunks = splitMessage(toTelegramMarkdownV2(response));
 
     await bot.editMessageText(chunks[0], {
       chat_id: chatId,
       message_id: thinkingMsg.message_id,
-      parse_mode: 'HTML',
+      parse_mode: 'MarkdownV2',
     });
 
     for (const chunk of chunks.slice(1)) {
-      await bot.sendMessage(chatId, chunk, { parse_mode: 'HTML' });
+      await bot.sendMessage(chatId, chunk, { parse_mode: 'MarkdownV2' });
     }
   } catch (error) {
     logger.error('Agent error', { error: String(error) });
-    const errText = escapeHtml(
+    const errText = escapeMarkdownV2(
       error instanceof Error ? error.message : String(error),
     );
     await bot.editMessageText(`Error: ${errText}`, {
       chat_id: chatId,
       message_id: thinkingMsg.message_id,
-      parse_mode: 'HTML',
+      parse_mode: 'MarkdownV2',
     });
   }
 };
@@ -159,6 +159,7 @@ const main = (): void => {
   };
 
   bot.onText(/\/start/, onStart);
+  bot.onText(/\/clear/, onReset);
   bot.onText(/\/reset/, onReset);
 
   bot.on('message', (msg) => {
