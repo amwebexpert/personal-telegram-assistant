@@ -1,6 +1,6 @@
-import { promises as fs } from 'fs';
 import { Token, Tokens, marked } from 'marked';
-import path from 'path';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 
 const escapeUrl = (url: string): string => url.replace(/[)\\]/g, '\\$&');
 
@@ -177,8 +177,6 @@ const renderToken = (token: Token): string => {
   }
 };
 
-const MAX_LEN = 4096;
-
 export const loadSessionId = async (
   fullPath: string,
 ): Promise<string | undefined> => {
@@ -211,14 +209,18 @@ export const clearSession = async (fullPath: string): Promise<void> => {
   await fs.rm(fullPath, { force: true });
 };
 
-export const trunc = (text: string): string =>
-  text.length > 120 ? `${text.slice(0, 120)}…` : text;
+const MAX_TEXT_LEN = 120;
+
+export const truncLongText = (text: string): string =>
+  text.length > MAX_TEXT_LEN ? `${text.slice(0, MAX_TEXT_LEN)}…` : text;
 
 export const toTelegramMarkdownV2 = (markdown: string): string => {
   const rendered = renderTokens(marked.lexer(markdown));
   const normalized = rendered.replace(/\n{3,}/g, '\n\n');
   return normalized.trim();
 };
+
+const MAX_LEN = 4096;
 
 export const splitMessage = (text: string): string[] => {
   const chunks: string[] = [];

@@ -1,8 +1,31 @@
 import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { z } from 'zod';
 
 const DEFAULT_ENV_FILE = '.env';
+
+export const ENV_SCHEMA = z.object({
+  TELEGRAM_BOT_TOKEN: z.string().min(1),
+  ZAPIER_MCP_URL: z.url().startsWith('https://mcp.zapier.com/'),
+  BOT_NAME: z.string().min(1),
+});
+
+export type EnvSchema = z.infer<typeof ENV_SCHEMA>;
+
+export const buildSessionFilename = (profile: string) => {
+  const isDefault = profile === 'default';
+  const sessionFileName = isDefault
+    ? 'session.json'
+    : `session-${profile}.json`;
+  return path.join(
+    os.homedir(),
+    '.config',
+    'telegram-assistant',
+    sessionFileName,
+  );
+};
 
 export const resolveEnvFile = (): string => {
   const fromArgv = process.argv[2]?.trim();
@@ -20,7 +43,12 @@ export const resolveProfileFromEnvFile = (envFile: string): string => {
   return match?.[1] ?? 'default';
 };
 
-export const loadEnv = (): { envFile: string; profile: string } => {
+export interface LoadEnvResult {
+  envFile: string;
+  profile: string;
+}
+
+export const loadEnv = (): LoadEnvResult => {
   const envFile = resolveEnvFile();
   const absolutePath = path.resolve(process.cwd(), envFile);
 
