@@ -70,9 +70,10 @@ To keep it running in the background:
 
 ```bash
 npm install -g pm2
-pm2 start "yarn start" --name telegram-assistant
+pm2 start "yarn start -- .env.user-a" --name telegram-assistant-user-a
 pm2 save
 pm2 startup  # follow the printed command to auto-start on login
+pm2 list # list running process
 ```
 
 ## Telegram commands
