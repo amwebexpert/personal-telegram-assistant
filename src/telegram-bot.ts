@@ -1,15 +1,16 @@
-import { query } from '@anthropic-ai/claude-agent-sdk';
-import { getErrorMessage } from '@lichens-innovation/ts-common';
-import { logger } from '@lichens-innovation/ts-common/logger';
-import TelegramBot from 'node-telegram-bot-api';
-import os from 'node:os';
+import { query } from "@anthropic-ai/claude-agent-sdk";
+import { getErrorMessage } from "@lichens-innovation/ts-common";
+import { logger } from "@lichens-innovation/ts-common/logger";
+import TelegramBot from "node-telegram-bot-api";
+import os from "node:os";
 
+import { LONG_VERSION_DATE } from "./constants";
 import {
   buildSessionFilename,
   ENV_SCHEMA,
   EnvSchema,
   loadEnv,
-} from './load-env';
+} from "./load-env";
 import {
   clearSession,
   escapeMarkdownV2,
@@ -18,7 +19,7 @@ import {
   splitMessage,
   toTelegramMarkdownV2,
   truncLongText,
-} from './telegram-bot.utils';
+} from "./telegram-bot.utils";
 
 interface ReportAgentErrorArgs {
   e: unknown;
@@ -41,11 +42,11 @@ export class TelegramBotApp {
   }
 
   private get botWelcome(): string {
-    return `Yo, ${this.env.BOT_NAME} here! 🤙`;
+    return `Yo, ${this.env.BOT_NAME} ${LONG_VERSION_DATE} here! 🤙`;
   }
 
   start(): void {
-    logger.info('Env loaded', { envFile: this.envFile });
+    logger.info("Env loaded", { envFile: this.envFile });
 
     this.bot = new TelegramBot(this.env.TELEGRAM_BOT_TOKEN, { polling: true });
     this.bot.onText(
@@ -55,21 +56,21 @@ export class TelegramBotApp {
 
     this.bot.onText(/\/clear/, (msg) => void this.onReset(msg));
     this.bot.onText(/\/reset/, (msg) => void this.onReset(msg));
-    this.bot.on('message', (msg) => void this.handleMessage(msg));
-    this.bot.on('polling_error', (err) => this.reportPollingError(err));
+    this.bot.on("message", (msg) => void this.handleMessage(msg));
+    this.bot.on("polling_error", (err) => this.reportPollingError(err));
 
-    logger.info('Bot started.');
+    logger.info("Bot started.");
   }
 
   private reportPollingError(rawError: Error): void {
     const error = getErrorMessage(rawError);
-    logger.error('Polling error', { error });
+    logger.error("Polling error", { error });
   }
 
   private get mcpServers() {
     return {
       zapier: {
-        type: 'http' as const,
+        type: "http" as const,
         url: this.env.ZAPIER_MCP_URL,
       },
     };
@@ -85,21 +86,21 @@ export class TelegramBotApp {
     const agentQuery = query({
       prompt,
       options: {
-        model: 'claude-sonnet-4-6',
+        model: "claude-sonnet-4-6",
         resume: sessionId,
-        permissionMode: 'bypassPermissions',
+        permissionMode: "bypassPermissions",
         cwd: os.homedir(),
-        allowedTools: ['mcp__zapier__*'],
+        allowedTools: ["mcp__zapier__*"],
         systemPrompt: this.systemPrompt,
         mcpServers: this.mcpServers,
       },
     });
 
-    let response = '';
+    let response = "";
     let newSessionId: string | undefined;
 
     for await (const message of agentQuery) {
-      if (message.type === 'result' && message.subtype === 'success') {
+      if (message.type === "result" && message.subtype === "success") {
         response = message.result;
         newSessionId = message.session_id;
       }
@@ -111,7 +112,7 @@ export class TelegramBotApp {
         sessionId: newSessionId,
       });
 
-    return response || '(no response)';
+    return response || "(no response)";
   }
 
   private async reportAgentError({
@@ -121,23 +122,23 @@ export class TelegramBotApp {
   }: ReportAgentErrorArgs): Promise<void> {
     if (!this.bot) return;
     const error = getErrorMessage(e);
-    logger.error('Agent error', { error });
+    logger.error("Agent error", { error });
 
     const errText = escapeMarkdownV2(error);
     await this.bot.editMessageText(`Error: ${errText}`, {
       chat_id: chatId,
       message_id: messageId,
-      parse_mode: 'MarkdownV2',
+      parse_mode: "MarkdownV2",
     });
   }
 
   private async handleMessage(msg: TelegramBot.Message): Promise<void> {
     if (!this.bot) return;
-    if (!msg.text || msg.text.startsWith('/')) return;
+    if (!msg.text || msg.text.startsWith("/")) return;
     const chatId = msg.chat.id;
 
     logger.info(truncLongText(`← ${msg.text}`));
-    const thinkingMsg = await this.bot.sendMessage(chatId, '🤔…');
+    const thinkingMsg = await this.bot.sendMessage(chatId, "🤔…");
 
     try {
       const response = await this.askClaudeAgent(msg.text);
@@ -147,11 +148,11 @@ export class TelegramBotApp {
       await this.bot.editMessageText(chunks[0], {
         chat_id: chatId,
         message_id: thinkingMsg.message_id,
-        parse_mode: 'MarkdownV2',
+        parse_mode: "MarkdownV2",
       });
 
       for (const chunk of chunks.slice(1)) {
-        await this.bot.sendMessage(chatId, chunk, { parse_mode: 'MarkdownV2' });
+        await this.bot.sendMessage(chatId, chunk, { parse_mode: "MarkdownV2" });
       }
     } catch (e: unknown) {
       await this.reportAgentError({
@@ -165,7 +166,7 @@ export class TelegramBotApp {
   private async onReset(msg: TelegramBot.Message): Promise<void> {
     if (!this.bot) return;
     await clearSession(this.sessionFile);
-    await this.bot.sendMessage(msg.chat.id, 'Session cleared.');
+    await this.bot.sendMessage(msg.chat.id, "Session cleared.");
   }
 }
 
@@ -173,5 +174,5 @@ try {
   new TelegramBotApp().start();
 } catch (e: unknown) {
   const error = getErrorMessage(e);
-  logger.fatal('Fatal error', { error });
+  logger.fatal("Fatal error", { error });
 }

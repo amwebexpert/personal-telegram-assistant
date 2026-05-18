@@ -1,24 +1,24 @@
-import { Token, Tokens, marked } from 'marked';
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
+import { Token, Tokens, marked } from "marked";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 
-const escapeUrl = (url: string): string => url.replace(/[)\\]/g, '\\$&');
+const escapeUrl = (url: string): string => url.replace(/[)\\]/g, "\\$&");
 
 export const escapeMarkdownV2 = (text: string): string =>
-  text.replace(/[_*[\]()~`>#+=|{}.!\-\\]/g, '\\$&');
+  text.replace(/[_*[\]()~`>#+=|{}.!\-\\]/g, "\\$&");
 
 const renderTokens = (tokens: Token[]): string =>
-  tokens.map(renderToken).join('');
+  tokens.map(renderToken).join("");
 
 const EMPTY_HEADER_CELL: Tokens.TableCell = {
-  text: '',
+  text: "",
   tokens: [],
   header: true,
   align: null,
 };
 
 const EMPTY_BODY_CELL: Tokens.TableCell = {
-  text: '',
+  text: "",
   tokens: [],
   header: false,
   align: null,
@@ -29,17 +29,17 @@ const getCellText = (cell: Tokens.TableCell): string => cell.text;
 interface PadCellArgs {
   text: string;
   width: number;
-  align: Tokens.TableCell['align'];
+  align: Tokens.TableCell["align"];
 }
 
 const padCell = ({ text, width, align }: PadCellArgs): string => {
-  if (align === 'right') return text.padStart(width);
-  if (align === 'center') {
+  if (align === "right") return text.padStart(width);
+  if (align === "center") {
     const total = width - text.length;
     return (
-      ' '.repeat(Math.floor(total / 2)) +
+      " ".repeat(Math.floor(total / 2)) +
       text +
-      ' '.repeat(Math.ceil(total / 2))
+      " ".repeat(Math.ceil(total / 2))
     );
   }
   return text.padEnd(width);
@@ -47,19 +47,19 @@ const padCell = ({ text, width, align }: PadCellArgs): string => {
 
 interface BuildSepCellArgs {
   width: number;
-  align: Tokens.TableCell['align'];
+  align: Tokens.TableCell["align"];
 }
 
 const buildSepCell = ({ width, align }: BuildSepCellArgs): string => {
-  if (align === 'center') return ':' + '-'.repeat(Math.max(1, width - 2)) + ':';
-  if (align === 'right') return '-'.repeat(Math.max(1, width - 1)) + ':';
-  return '-'.repeat(width);
+  if (align === "center") return ":" + "-".repeat(Math.max(1, width - 2)) + ":";
+  if (align === "right") return "-".repeat(Math.max(1, width - 1)) + ":";
+  return "-".repeat(width);
 };
 
 interface FmtTableRowArgs {
   cells: Tokens.TableCell[];
   colWidths: number[];
-  aligns: Tokens.TableCell['align'][];
+  aligns: Tokens.TableCell["align"][];
 }
 
 const fmtTableRow = ({ cells, colWidths, aligns }: FmtTableRowArgs): string => {
@@ -70,20 +70,20 @@ const fmtTableRow = ({ cells, colWidths, aligns }: FmtTableRowArgs): string => {
       align: aligns[i],
     }),
   );
-  const rowInner = paddedCells.join(' | ');
+  const rowInner = paddedCells.join(" | ");
   return `| ${rowInner} |`;
 };
 
 interface BuildSepRowArgs {
   colWidths: number[];
-  aligns: Tokens.TableCell['align'][];
+  aligns: Tokens.TableCell["align"][];
 }
 
 const buildSepRow = ({ colWidths, aligns }: BuildSepRowArgs): string => {
   const sepCells = colWidths.map((width, i) =>
     buildSepCell({ width, align: aligns[i] }),
   );
-  const rowInner = sepCells.join(' | ');
+  const rowInner = sepCells.join(" | ");
   return `| ${rowInner} |`;
 };
 
@@ -105,75 +105,75 @@ const renderTable = (token: Tokens.Table): string => {
     fmtTableRow({ cells, colWidths, aligns }),
   );
 
-  return `\`\`\`\n${[headerRow, sepRow, ...bodyRows].join('\n')}\n\`\`\`\n\n`;
+  return `\`\`\`\n${[headerRow, sepRow, ...bodyRows].join("\n")}\n\`\`\`\n\n`;
 };
 
 const renderToken = (token: Token): string => {
   switch (token.type) {
-    case 'space':
-      return '\n';
-    case 'hr':
-      return '────────────\n\n';
-    case 'heading':
+    case "space":
+      return "\n";
+    case "hr":
+      return "────────────\n\n";
+    case "heading":
       return `*${renderTokens(token.tokens ?? [])}*\n\n`;
-    case 'code':
-      return `\`\`\`${token.lang ?? ''}\n${token.text}\n\`\`\`\n\n`;
-    case 'blockquote':
+    case "code":
+      return `\`\`\`${token.lang ?? ""}\n${token.text}\n\`\`\`\n\n`;
+    case "blockquote":
       return (
         renderTokens(token.tokens ?? [])
           .trim()
-          .split('\n')
+          .split("\n")
           .map((line) => `>${line}`)
-          .join('\n') + '\n\n'
+          .join("\n") + "\n\n"
       );
-    case 'list': {
+    case "list": {
       const items = token.items as Tokens.ListItem[];
       return (
         items
           .map((item) => `• ${renderTokens(item.tokens ?? []).trim()}\n`)
-          .join('') + '\n'
+          .join("") + "\n"
       );
     }
-    case 'paragraph':
+    case "paragraph":
       return `${renderTokens(token.tokens ?? [])}\n\n`;
-    case 'table':
+    case "table":
       return renderTable(token as Tokens.Table);
-    case 'html':
-    case 'tag':
-      return '';
-    case 'text': {
+    case "html":
+    case "tag":
+      return "";
+    case "text": {
       const tokens = token.tokens as Token[];
       return tokens
         ? renderTokens(token.tokens ?? [])
         : escapeMarkdownV2(token.text as string);
     }
-    case 'escape': {
+    case "escape": {
       const text = token.text as string;
       return escapeMarkdownV2(text);
     }
-    case 'strong':
+    case "strong":
       return `*${renderTokens(token.tokens ?? [])}*`;
-    case 'em':
+    case "em":
       return `_${renderTokens(token.tokens ?? [])}_`;
-    case 'del':
+    case "del":
       return `~${renderTokens(token.tokens ?? [])}~`;
-    case 'codespan':
+    case "codespan":
       return `\`${token.text}\``;
-    case 'link': {
+    case "link": {
       const tokens = token.tokens as Token[];
       return tokens
         ? `[${renderTokens(tokens)}](${escapeUrl(token.href as string)})`
         : escapeMarkdownV2(token.text as string);
     }
-    case 'image': {
+    case "image": {
       const title = token.title as string;
       const text = token.text as string;
       return escapeMarkdownV2(title ?? text);
     }
-    case 'br':
-      return '\n';
+    case "br":
+      return "\n";
     default:
-      return '';
+      return "";
   }
 };
 
@@ -181,10 +181,10 @@ export const loadSessionId = async (
   fullPath: string,
 ): Promise<string | undefined> => {
   try {
-    const raw: unknown = JSON.parse(await fs.readFile(fullPath, 'utf-8'));
-    if (raw && typeof raw === 'object' && 'sessionId' in raw) {
-      const sid = Reflect.get(raw, 'sessionId');
-      if (typeof sid === 'string') return sid;
+    const raw: unknown = JSON.parse(await fs.readFile(fullPath, "utf-8"));
+    if (raw && typeof raw === "object" && "sessionId" in raw) {
+      const sid = Reflect.get(raw, "sessionId");
+      if (typeof sid === "string") return sid;
     }
     return undefined;
   } catch {
@@ -216,7 +216,7 @@ export const truncLongText = (text: string): string =>
 
 export const toTelegramMarkdownV2 = (markdown: string): string => {
   const rendered = renderTokens(marked.lexer(markdown));
-  const normalized = rendered.replace(/\n{3,}/g, '\n\n');
+  const normalized = rendered.replace(/\n{3,}/g, "\n\n");
   return normalized.trim();
 };
 
@@ -226,7 +226,7 @@ export const splitMessage = (text: string): string[] => {
   const chunks: string[] = [];
   let remaining = text;
   while (remaining.length > MAX_LEN) {
-    let split = remaining.lastIndexOf('\n', MAX_LEN);
+    let split = remaining.lastIndexOf("\n", MAX_LEN);
     if (split <= 0) split = MAX_LEN;
     chunks.push(remaining.slice(0, split));
     remaining = remaining.slice(split).trimStart();
