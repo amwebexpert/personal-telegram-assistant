@@ -13,7 +13,6 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.141",
     "@lichens-innovation/ts-common": "^1.15.5",
-    "ajv": "^8.20.0",
     "dotenv": "^16.5.0",
     "marked": "^18.0.3",
     "node-telegram-bot-api": "^0.67.0",
