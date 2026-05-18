@@ -66,14 +66,20 @@ The `--` separator is required so Yarn forwards arguments to the Node process.
 
 Each profile gets its own Claude session file under `~/.config/telegram-assistant/` (e.g. `session-user-a.json`).
 
-To keep it running in the background:
+Use `pm2` to keep it running in the background:
 
 ```bash
 npm install -g pm2
 pm2 start "yarn start -- .env.user-a" --name telegram-assistant-user-a
 pm2 save
 pm2 startup  # follow the printed command to auto-start on login
+```
+
+Background processes logs viewer
+
+```bash
 pm2 list # list running process
+pm2 logs telegram-assistant-user-a # to see that process logs
 ```
 
 ## Telegram commands
