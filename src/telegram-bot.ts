@@ -18,8 +18,7 @@ import {
 
 const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(1),
-  TAVILY_API_KEY: z.string().min(1),
-  GOOGLE_OAUTH_CREDENTIALS_PATH: z.string().min(1),
+  ZAPIER_MCP_URL: z.string().url().startsWith('https://mcp.zapier.com/'),
 });
 
 const env = envSchema.parse(process.env);
@@ -31,35 +30,10 @@ const SESSION_FILE = path.join(
   'session.json',
 );
 
-interface McpServerEntry {
-  type: 'stdio';
-  command: string;
-  args: string[];
-  env: Record<string, string>;
-}
-
-type McpServersConfig = Record<string, McpServerEntry>;
-
-const buildMcpServers = (): McpServersConfig => ({
-  tavily: {
-    type: 'stdio' as const,
-    command: 'npx',
-    args: ['-y', 'tavily-mcp@latest'],
-    env: { TAVILY_API_KEY: env.TAVILY_API_KEY },
-  },
-  googleCalendar: {
-    type: 'stdio' as const,
-    command: 'npx',
-    // @cocal/google-calendar-mcp depends on ajv-formats without declaring ajv; plain `npx -y` crashes.
-    // prettier-ignore
-    args: ['-y', '-p', 'ajv@8', '-p', '@cocal/google-calendar-mcp', 'google-calendar-mcp'],
-    env: { GOOGLE_OAUTH_CREDENTIALS: env.GOOGLE_OAUTH_CREDENTIALS_PATH },
-  },
-  gmail: {
-    type: 'stdio' as const,
-    command: 'npx',
-    args: ['-y', '@gongrzhe/server-gmail-autoauth-mcp'],
-    env: { GMAIL_OAUTH_PATH: env.GOOGLE_OAUTH_CREDENTIALS_PATH },
+const buildMcpServers = () => ({
+  zapier: {
+    type: 'http' as const,
+    url: env.ZAPIER_MCP_URL,
   },
 });
 
@@ -73,8 +47,9 @@ const askClaudeAgent = async (prompt: string): Promise<string> => {
       resume: sessionId,
       permissionMode: 'bypassPermissions',
       cwd: os.homedir(),
+      allowedTools: ['mcp__zapier__*'],
       systemPrompt:
-        "You are André's personal assistant. Be concise and direct. Use the most appropriate emoji.",
+        "You are André's personal assistant. Be concise and direct. Use the most appropriate emoji. Use Zapier MCP tools for external apps (Gmail, Calendar, web search, etc.). Use local filesystem tools for files on disk.",
       mcpServers: buildMcpServers(),
     },
   });

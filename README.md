@@ -1,12 +1,13 @@
 # Personal Telegram Assistant
 
-A personal AI assistant powered by `@anthropic-ai/claude-agent-sdk`, reachable over Telegram. Supports web search (Tavily), Google Calendar, Gmail, and read/write access to your local filesystem.
+A personal AI assistant powered by `@anthropic-ai/claude-agent-sdk`, reachable over Telegram. External app actions (Gmail, Calendar, web search, etc.) go through a single [Zapier MCP](https://mcp.zapier.com/) server. The agent also has read/write access to your local filesystem.
 
 ## Prerequisites
 
 - Node.js 20+
 - `claude` CLI installed and authenticated (`claude --version` should work)
 - A Telegram account
+- A Zapier account with MCP enabled on your plan
 
 ## Setup
 
@@ -22,40 +23,21 @@ yarn install
 2. Send `/newbot` and follow the prompts
 3. Copy the bot token
 
-### 3. Get a Tavily API key
+### 3. Set up Zapier MCP
 
-Sign up at [app.tavily.com](https://app.tavily.com) and copy your API key.
+1. Go to [mcp.zapier.com](https://mcp.zapier.com/) and create a server (choose **Other** as the client if your setup is not listed).
+2. In the **Tools** tab, add the actions you need (e.g. Gmail, Google Calendar, web search). Connect each app account in the Zapier console.
+3. Open the **Connect** tab and copy your server URL. Treat it like a password — it grants access to run your configured actions.
 
-### 4. Set up Google OAuth credentials
+See [Manage tools for your Zapier MCP server](https://help.zapier.com/hc/en-us/articles/36265551472781) for details on tools and connections.
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project
-3. Enable **Google Calendar API** and **Gmail API**
-4. Go to **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**
-5. Application type: **Desktop app**
-6. Download the JSON file and save it as `/Users/your-username/.gmail-mcp/gcp-oauth.keys.json` (replace `your-username` with your macOS login name; create the `.gmail-mcp` folder first if it does not exist).
-7. **GMail First time only:** complete Gmail OAuth from the terminal (opens a browser once):
+**Notes:**
 
-   ```bash
-   npx @gongrzhe/server-gmail-autoauth-mcp auth
-   ```
+- Each successful tool call uses **2 tasks** from your Zapier plan.
+- Only **one client** can run tool calls through the same server URL at a time. Avoid using the same URL from Cursor and this bot simultaneously.
+- If the URL is exposed, use **Rotate token** on the Connect tab.
 
-8. After a successful login, confirm that `credentials.json` was created in the same `.gmail-mcp` directory as your OAuth client file (for example `/Users/your-username/.gmail-mcp/credentials.json`, or `ls ~/.gmail-mcp/`).
-
-9. **Google Calendar — first time only:** complete Calendar OAuth from the terminal (opens a browser once). Use the **same absolute path** as your downloaded `gcp-oauth.keys.json` (the example below matches step 6; adjust if you stored the file elsewhere):
-
-   ```bash
-   GOOGLE_OAUTH_CREDENTIALS=/Users/your-username/.gmail-mcp/gcp-oauth.keys.json npx -p ajv@8 -p @cocal/google-calendar-mcp google-calendar-mcp auth
-   ```
-
-   After a successful login, you should see:
-
-   ```
-   Loaded tokens for normal account
-   Authentication successful.
-   ```
-
-### 5. Configure environment
+### 4. Configure environment
 
 ```bash
 cp .env.example .env
@@ -65,11 +47,10 @@ Fill in `.env`:
 
 ```
 TELEGRAM_BOT_TOKEN=your_token_here
-TAVILY_API_KEY=your_key_here
-GOOGLE_OAUTH_CREDENTIALS_PATH=/Users/your-username/.gmail-mcp/gcp-oauth.keys.json
+ZAPIER_MCP_URL=https://mcp.zapier.com/your-server-url
 ```
 
-### 6. Run
+### 5. Run
 
 ```bash
 yarn start
@@ -89,6 +70,6 @@ pm2 startup  # follow the printed command to auto-start on login
 | Command | Description |
 |---------|-------------|
 | `/start` | Say hello |
-| `/reset` | Clear conversation history and start fresh |
+| `/reset` or `/clear` | Clear conversation history and start fresh |
 
 Any other message is sent directly to the assistant.
