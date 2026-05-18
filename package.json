@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "start": "tsx src/telegram-bot.ts",
-    "start:prod": "tsx src/telegram-bot.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "lint-staged": "lint-staged",

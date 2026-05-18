@@ -1,11 +1,11 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { getErrorMessage } from '@lichens-innovation/ts-common';
 import { logger } from '@lichens-innovation/ts-common/logger';
-import 'dotenv/config';
 import TelegramBot from 'node-telegram-bot-api';
 import os from 'os';
 import path from 'path';
 import { z } from 'zod';
+import { loadEnv } from './load-env';
 import {
   clearSession,
   escapeMarkdownV2,
@@ -16,18 +16,23 @@ import {
   trunc,
 } from './telegram-bot.utils';
 
+const { envFile, profile } = loadEnv();
+
 const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(1),
   ZAPIER_MCP_URL: z.string().url().startsWith('https://mcp.zapier.com/'),
+  BOT_NAME: z.string().min(1),
 });
 
 const env = envSchema.parse(process.env);
 
+const sessionFileName =
+  profile === 'default' ? 'session.json' : `session-${profile}.json`;
 const SESSION_FILE = path.join(
   os.homedir(),
   '.config',
   'telegram-assistant',
-  'session.json',
+  sessionFileName,
 );
 
 const buildMcpServers = () => ({
@@ -36,6 +41,9 @@ const buildMcpServers = () => ({
     url: env.ZAPIER_MCP_URL,
   },
 });
+
+const buildSystemPrompt = (): string =>
+  `You are ${env.BOT_NAME}, a personal assistant. Be concise and direct. Use the most appropriate emoji. Use Zapier MCP tools for external apps (Gmail, Calendar, web search, etc.). Use local filesystem tools for files on disk.`;
 
 const askClaudeAgent = async (prompt: string): Promise<string> => {
   const sessionId = await loadSessionId(SESSION_FILE);
@@ -48,8 +56,7 @@ const askClaudeAgent = async (prompt: string): Promise<string> => {
       permissionMode: 'bypassPermissions',
       cwd: os.homedir(),
       allowedTools: ['mcp__zapier__*'],
-      systemPrompt:
-        "You are André's personal assistant. Be concise and direct. Use the most appropriate emoji. Use Zapier MCP tools for external apps (Gmail, Calendar, web search, etc.). Use local filesystem tools for files on disk.",
+      systemPrompt: buildSystemPrompt(),
       mcpServers: buildMcpServers(),
     },
   });
@@ -117,6 +124,8 @@ const handleMessage = async ({
 };
 
 const main = (): void => {
+  logger.info('Env loaded', { envFile, profile, botName: env.BOT_NAME });
+
   const bot = new TelegramBot(env.TELEGRAM_BOT_TOKEN, { polling: true });
   logger.info('Bot started.');
 
@@ -131,7 +140,7 @@ const main = (): void => {
   bot.onText(/\/reset/, onReset);
 
   bot.onText(/\/start/, (msg: TelegramBot.Message) => {
-    void bot.sendMessage(msg.chat.id, "Yo André, I'm your assistant.");
+    void bot.sendMessage(msg.chat.id, `Hi, I'm ${env.BOT_NAME}.`);
   });
 
   bot.on('message', (msg) => {

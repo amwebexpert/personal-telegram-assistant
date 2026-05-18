@@ -39,22 +39,32 @@ See [Manage tools for your Zapier MCP server](https://help.zapier.com/hc/en-us/a
 
 ### 4. Configure environment
 
+One env file per bot instance. Copy the template for each instance:
+
+```bash
+cp .env.example .env.user-a
+cp .env.example .env.user-b
+```
+
+Fill in each file (`TELEGRAM_BOT_TOKEN`, `ZAPIER_MCP_URL`, `BOT_NAME`).
+
+For a single local instance, `.env` alone is enough:
+
 ```bash
 cp .env.example .env
-```
-
-Fill in `.env`:
-
-```
-TELEGRAM_BOT_TOKEN=your_token_here
-ZAPIER_MCP_URL=https://mcp.zapier.com/your-server-url
 ```
 
 ### 5. Run
 
 ```bash
-yarn start
+yarn start                      # loads .env
+yarn start -- .env.user-a       # loads .env.user-a
+yarn start -- .env.user-b       # loads .env.user-b
 ```
+
+The `--` separator is required so Yarn forwards arguments to the Node process.
+
+Each profile gets its own Claude session file under `~/.config/telegram-assistant/` (e.g. `session-user-a.json`).
 
 To keep it running in the background:
 
