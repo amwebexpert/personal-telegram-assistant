@@ -1,9 +1,4 @@
 import { Token, Tokens, marked } from "marked";
-
-interface ParsedAgentResponse {
-  html: string;
-  tables: Tokens.Table[];
-}
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
@@ -16,27 +11,102 @@ export const escapeHtml = (text: string): string =>
 const renderTokens = (tokens: Token[]): string =>
   tokens.map(renderToken).join("");
 
+const EMPTY_HEADER_CELL: Tokens.TableCell = {
+  text: "",
+  tokens: [],
+  header: true,
+  align: null,
+};
+
+const EMPTY_BODY_CELL: Tokens.TableCell = {
+  text: "",
+  tokens: [],
+  header: false,
+  align: null,
+};
+
+const getCellText = (cell: Tokens.TableCell): string => escapeHtml(cell.text);
+
+interface PadCellArgs {
+  text: string;
+  width: number;
+  align: Tokens.TableCell["align"];
+}
+
+const padCell = ({ text, width, align }: PadCellArgs): string => {
+  if (align === "right") return text.padStart(width);
+  if (align === "center") {
+    const total = width - text.length;
+    return (
+      " ".repeat(Math.floor(total / 2)) +
+      text +
+      " ".repeat(Math.ceil(total / 2))
+    );
+  }
+  return text.padEnd(width);
+};
+
+interface BuildSepCellArgs {
+  width: number;
+  align: Tokens.TableCell["align"];
+}
+
+const buildSepCell = ({ width, align }: BuildSepCellArgs): string => {
+  if (align === "center") return ":" + "-".repeat(Math.max(1, width - 2)) + ":";
+  if (align === "right") return "-".repeat(Math.max(1, width - 1)) + ":";
+  return "-".repeat(width);
+};
+
+interface FmtTableRowArgs {
+  cells: Tokens.TableCell[];
+  colWidths: number[];
+  aligns: Tokens.TableCell["align"][];
+}
+
+const fmtTableRow = ({ cells, colWidths, aligns }: FmtTableRowArgs): string => {
+  const paddedCells = colWidths.map((width, i) =>
+    padCell({
+      text: getCellText(cells[i] ?? EMPTY_BODY_CELL),
+      width,
+      align: aligns[i],
+    }),
+  );
+  const rowInner = paddedCells.join(" | ");
+  return `| ${rowInner} |`;
+};
+
+interface BuildSepRowArgs {
+  colWidths: number[];
+  aligns: Tokens.TableCell["align"][];
+}
+
+const buildSepRow = ({ colWidths, aligns }: BuildSepRowArgs): string => {
+  const sepCells = colWidths.map((width, i) =>
+    buildSepCell({ width, align: aligns[i] }),
+  );
+  const rowInner = sepCells.join(" | ");
+  return `| ${rowInner} |`;
+};
+
 const renderTable = (token: Tokens.Table): string => {
-  const headerCells = token.header
-    .map((cell) => `<th>${cell.text}</th>`)
-    .join("");
-  const bodyRows = token.rows.map((row) => {
-    const cells = row.map((cell) => `<td>${cell.text}</td>`).join("");
-    return `  <tr>${cells}</tr>`;
-  });
+  const colCount = token.header.length;
 
-  const tableLines = [
-    "<table>",
-    "  <thead>",
-    `    <tr>${headerCells}</tr>`,
-    "  </thead>",
-    "  <tbody>",
-    ...bodyRows,
-    "  </tbody>",
-    "</table>",
-  ];
+  const colWidths = Array.from({ length: colCount }, (_, i) =>
+    Math.max(
+      3,
+      getCellText(token.header[i] ?? EMPTY_HEADER_CELL).length,
+      ...token.rows.map((row) => getCellText(row[i] ?? EMPTY_BODY_CELL).length),
+    ),
+  );
 
-  return `<pre><code class="language-html">${escapeHtml(tableLines.join("\n"))}</code></pre>\n\n`;
+  const aligns = token.align;
+  const headerRow = fmtTableRow({ cells: token.header, colWidths, aligns });
+  const sepRow = buildSepRow({ colWidths, aligns });
+  const bodyRows = token.rows.map((cells) =>
+    fmtTableRow({ cells, colWidths, aligns }),
+  );
+
+  return `<pre>${[headerRow, sepRow, ...bodyRows].join("\n")}</pre>\n\n`;
 };
 
 const renderToken = (token: Token): string => {
@@ -142,20 +212,8 @@ const MAX_TEXT_LEN = 120;
 export const truncLongText = (text: string): string =>
   text.length > MAX_TEXT_LEN ? `${text.slice(0, MAX_TEXT_LEN)}…` : text;
 
-export const parseAgentResponse = (markdown: string): ParsedAgentResponse => {
-  const allTokens = marked.lexer(markdown);
-  const tables: Tokens.Table[] = [];
-
-  const nonTableTokens = allTokens.filter((token) => {
-    if (token.type === "table") {
-      tables.push(token as Tokens.Table);
-      return false;
-    }
-    return true;
-  });
-
-  const rendered = renderTokens(nonTableTokens);
-  const html = rendered.replace(/\n{3,}/g, "\n\n").trim();
-
-  return { html, tables };
+export const toTelegramHtml = (markdown: string): string => {
+  const rendered = renderTokens(marked.lexer(markdown));
+  const normalized = rendered.replace(/\n{3,}/g, "\n\n");
+  return normalized.trim();
 };

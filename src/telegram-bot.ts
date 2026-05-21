@@ -1,7 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { getErrorMessage } from "@lichens-innovation/ts-common";
 import { logger } from "@lichens-innovation/ts-common/logger";
-import { Tokens } from "marked";
 import TelegramBot from "node-telegram-bot-api";
 import os from "node:os";
 
@@ -12,14 +11,12 @@ import {
   EnvSchema,
   loadEnv,
 } from "./load-env";
-import { buildTableHtmlDoc } from "./table-html.utils";
-import { buildTableSvg, tableToBuffer } from "./table-image.utils";
 import {
   clearSession,
   escapeHtml,
   loadSessionId,
-  parseAgentResponse,
   saveSessionId,
+  toTelegramHtml,
   truncLongText,
 } from "./telegram-bot.utils";
 
@@ -35,7 +32,6 @@ export class TelegramBotApp {
   private readonly sessionFile: string;
 
   private bot: TelegramBot | null = null;
-  private sendTablesFormat: "photo" | "html-doc" | "svg" = "svg";
 
   constructor() {
     const { envFile, profile } = loadEnv();
@@ -135,64 +131,6 @@ export class TelegramBotApp {
     });
   }
 
-  private async sendTables(
-    chatId: number,
-    tables: Tokens.Table[],
-  ): Promise<void> {
-    if (this.sendTablesFormat === "photo") {
-      await this.sendTablesAsPhoto(chatId, tables);
-    } else if (this.sendTablesFormat === "svg") {
-      await this.sendTablesAsSvg(chatId, tables);
-    } else {
-      await this.sendTablesAsHtmlDoc(chatId, tables);
-    }
-  }
-
-  private async sendTablesAsPhoto(
-    chatId: number,
-    tables: Tokens.Table[],
-  ): Promise<void> {
-    if (!this.bot) return;
-
-    const options = {};
-    const fileOptions = { filename: "table.png", contentType: "image/png" };
-
-    for (const table of tables) {
-      const buffer = await tableToBuffer(table);
-      await this.bot.sendPhoto(chatId, buffer, options, fileOptions);
-    }
-  }
-
-  private async sendTablesAsSvg(
-    chatId: number,
-    tables: Tokens.Table[],
-  ): Promise<void> {
-    if (!this.bot) return;
-
-    const options = {};
-    const fileOptions = { filename: "table.svg", contentType: "image/svg+xml" };
-
-    for (const table of tables) {
-      const buffer = Buffer.from(buildTableSvg(table), "utf-8");
-      await this.bot.sendDocument(chatId, buffer, options, fileOptions);
-    }
-  }
-
-  private async sendTablesAsHtmlDoc(
-    chatId: number,
-    tables: Tokens.Table[],
-  ): Promise<void> {
-    if (!this.bot) return;
-
-    const options = {};
-    const fileOptions = { filename: "table.html", contentType: "text/html" };
-
-    for (const table of tables) {
-      const buffer = Buffer.from(buildTableHtmlDoc(table), "utf-8");
-      await this.bot.sendDocument(chatId, buffer, options, fileOptions);
-    }
-  }
-
   private async handleMessage(msg: TelegramBot.Message): Promise<void> {
     if (!this.bot) return;
     if (!msg.text || msg.text.startsWith("/")) return;
@@ -205,25 +143,11 @@ export class TelegramBotApp {
       const response = await this.askClaudeAgent(msg.text);
       logger.info(truncLongText(`→ ${response}`));
 
-      const { html, tables } = parseAgentResponse(response);
-
-      if (html) {
-        await this.bot.editMessageText(html, {
-          chat_id: chatId,
-          message_id: thinkingMsg.message_id,
-          parse_mode: "HTML",
-        });
-      } else if (tables.length > 0) {
-        await this.bot.deleteMessage(chatId, thinkingMsg.message_id);
-      } else {
-        await this.bot.editMessageText("(no response)", {
-          chat_id: chatId,
-          message_id: thinkingMsg.message_id,
-          parse_mode: "HTML",
-        });
-      }
-
-      await this.sendTables(chatId, tables);
+      await this.bot.editMessageText(toTelegramHtml(response), {
+        chat_id: chatId,
+        message_id: thinkingMsg.message_id,
+        parse_mode: "HTML",
+      });
     } catch (e: unknown) {
       await this.reportAgentError({
         e,
