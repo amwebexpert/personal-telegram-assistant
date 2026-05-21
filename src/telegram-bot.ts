@@ -13,7 +13,7 @@ import {
   loadEnv,
 } from "./load-env";
 import { buildTableHtmlDoc } from "./table-html.utils";
-import { tableToBuffer } from "./table-image.utils";
+import { buildTableSvg, tableToBuffer } from "./table-image.utils";
 import {
   clearSession,
   escapeHtml,
@@ -35,7 +35,7 @@ export class TelegramBotApp {
   private readonly sessionFile: string;
 
   private bot: TelegramBot | null = null;
-  private sendTablesFormat: "photo" | "html-doc" = "html-doc";
+  private sendTablesFormat: "photo" | "html-doc" | "svg" = "svg";
 
   constructor() {
     const { envFile, profile } = loadEnv();
@@ -141,6 +141,8 @@ export class TelegramBotApp {
   ): Promise<void> {
     if (this.sendTablesFormat === "photo") {
       await this.sendTablesAsPhoto(chatId, tables);
+    } else if (this.sendTablesFormat === "svg") {
+      await this.sendTablesAsSvg(chatId, tables);
     } else {
       await this.sendTablesAsHtmlDoc(chatId, tables);
     }
@@ -161,17 +163,33 @@ export class TelegramBotApp {
     }
   }
 
+  private async sendTablesAsSvg(
+    chatId: number,
+    tables: Tokens.Table[],
+  ): Promise<void> {
+    if (!this.bot) return;
+
+    const options = {};
+    const fileOptions = { filename: "table.svg", contentType: "image/svg+xml" };
+
+    for (const table of tables) {
+      const buffer = Buffer.from(buildTableSvg(table), "utf-8");
+      await this.bot.sendDocument(chatId, buffer, options, fileOptions);
+    }
+  }
+
   private async sendTablesAsHtmlDoc(
     chatId: number,
     tables: Tokens.Table[],
   ): Promise<void> {
     if (!this.bot) return;
 
+    const options = {};
     const fileOptions = { filename: "table.html", contentType: "text/html" };
 
     for (const table of tables) {
       const buffer = Buffer.from(buildTableHtmlDoc(table), "utf-8");
-      await this.bot.sendDocument(chatId, buffer, {}, fileOptions);
+      await this.bot.sendDocument(chatId, buffer, options, fileOptions);
     }
   }
 

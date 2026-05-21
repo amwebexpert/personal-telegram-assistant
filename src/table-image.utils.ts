@@ -105,7 +105,7 @@ const buildGridParts = ({
   return [...colSeps, outerBorder];
 };
 
-const buildTableSvg = (table: Tokens.Table): string => {
+export const buildTableSvg = (table: Tokens.Table): string => {
   const colWidths = calcColWidths(table);
   const innerWidth = colWidths.reduce((a, b) => a + b, 0);
   const totalWidth = innerWidth + OUTER_PAD * 2;
