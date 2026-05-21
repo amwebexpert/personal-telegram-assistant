@@ -2,10 +2,11 @@ import { Token, Tokens, marked } from "marked";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-const escapeUrl = (url: string): string => url.replace(/[)\\]/g, "\\$&");
+const escapeHtmlAttr = (url: string): string =>
+  url.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 
-export const escapeMarkdownV2 = (text: string): string =>
-  text.replace(/[_*[\]()~`>#+=|{}.!\-\\]/g, "\\$&");
+export const escapeHtml = (text: string): string =>
+  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 const renderTokens = (tokens: Token[]): string =>
   tokens.map(renderToken).join("");
@@ -24,7 +25,7 @@ const EMPTY_BODY_CELL: Tokens.TableCell = {
   align: null,
 };
 
-const getCellText = (cell: Tokens.TableCell): string => cell.text;
+const getCellText = (cell: Tokens.TableCell): string => escapeHtml(cell.text);
 
 interface PadCellArgs {
   text: string;
@@ -105,7 +106,7 @@ const renderTable = (token: Tokens.Table): string => {
     fmtTableRow({ cells, colWidths, aligns }),
   );
 
-  return `\`\`\`\n${[headerRow, sepRow, ...bodyRows].join("\n")}\n\`\`\`\n\n`;
+  return `<pre>${[headerRow, sepRow, ...bodyRows].join("\n")}</pre>\n\n`;
 };
 
 const renderToken = (token: Token): string => {
@@ -115,17 +116,14 @@ const renderToken = (token: Token): string => {
     case "hr":
       return "────────────\n\n";
     case "heading":
-      return `*${renderTokens(token.tokens ?? [])}*\n\n`;
-    case "code":
-      return `\`\`\`${token.lang ?? ""}\n${token.text}\n\`\`\`\n\n`;
+      return `<b>${renderTokens(token.tokens ?? [])}</b>\n\n`;
+    case "code": {
+      const lang = token.lang as string;
+      const langAttr = lang ? ` class="language-${escapeHtmlAttr(lang)}"` : "";
+      return `<pre><code${langAttr}>${escapeHtml(token.text as string)}</code></pre>\n\n`;
+    }
     case "blockquote":
-      return (
-        renderTokens(token.tokens ?? [])
-          .trim()
-          .split("\n")
-          .map((line) => `>${line}`)
-          .join("\n") + "\n\n"
-      );
+      return `<blockquote>${renderTokens(token.tokens ?? []).trim()}</blockquote>\n\n`;
     case "list": {
       const items = token.items as Tokens.ListItem[];
       return (
@@ -145,30 +143,30 @@ const renderToken = (token: Token): string => {
       const tokens = token.tokens as Token[];
       return tokens
         ? renderTokens(token.tokens ?? [])
-        : escapeMarkdownV2(token.text as string);
+        : escapeHtml(token.text as string);
     }
     case "escape": {
       const text = token.text as string;
-      return escapeMarkdownV2(text);
+      return escapeHtml(text);
     }
     case "strong":
-      return `*${renderTokens(token.tokens ?? [])}*`;
+      return `<b>${renderTokens(token.tokens ?? [])}</b>`;
     case "em":
-      return `_${renderTokens(token.tokens ?? [])}_`;
+      return `<i>${renderTokens(token.tokens ?? [])}</i>`;
     case "del":
-      return `~${renderTokens(token.tokens ?? [])}~`;
+      return `<s>${renderTokens(token.tokens ?? [])}</s>`;
     case "codespan":
-      return `\`${token.text}\``;
+      return `<code>${escapeHtml(token.text as string)}</code>`;
     case "link": {
       const tokens = token.tokens as Token[];
       return tokens
-        ? `[${renderTokens(tokens)}](${escapeUrl(token.href as string)})`
-        : escapeMarkdownV2(token.text as string);
+        ? `<a href="${escapeHtmlAttr(token.href as string)}">${renderTokens(tokens)}</a>`
+        : escapeHtml(token.text as string);
     }
     case "image": {
       const title = token.title as string;
       const text = token.text as string;
-      return escapeMarkdownV2(title ?? text);
+      return escapeHtml(title ?? text);
     }
     case "br":
       return "\n";
@@ -214,23 +212,8 @@ const MAX_TEXT_LEN = 120;
 export const truncLongText = (text: string): string =>
   text.length > MAX_TEXT_LEN ? `${text.slice(0, MAX_TEXT_LEN)}…` : text;
 
-export const toTelegramMarkdownV2 = (markdown: string): string => {
+export const toTelegramHtml = (markdown: string): string => {
   const rendered = renderTokens(marked.lexer(markdown));
   const normalized = rendered.replace(/\n{3,}/g, "\n\n");
   return normalized.trim();
-};
-
-const MAX_LEN = 4096;
-
-export const splitMessage = (text: string): string[] => {
-  const chunks: string[] = [];
-  let remaining = text;
-  while (remaining.length > MAX_LEN) {
-    let split = remaining.lastIndexOf("\n", MAX_LEN);
-    if (split <= 0) split = MAX_LEN;
-    chunks.push(remaining.slice(0, split));
-    remaining = remaining.slice(split).trimStart();
-  }
-  if (remaining) chunks.push(remaining);
-  return chunks;
 };

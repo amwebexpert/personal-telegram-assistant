@@ -13,11 +13,10 @@ import {
 } from "./load-env";
 import {
   clearSession,
-  escapeMarkdownV2,
+  escapeHtml,
   loadSessionId,
   saveSessionId,
-  splitMessage,
-  toTelegramMarkdownV2,
+  toTelegramHtml,
   truncLongText,
 } from "./telegram-bot.utils";
 
@@ -124,11 +123,11 @@ export class TelegramBotApp {
     const error = getErrorMessage(e);
     logger.error("Agent error", { error });
 
-    const errText = escapeMarkdownV2(error);
+    const errText = escapeHtml(error);
     await this.bot.editMessageText(`Error: ${errText}`, {
       chat_id: chatId,
       message_id: messageId,
-      parse_mode: "MarkdownV2",
+      parse_mode: "HTML",
     });
   }
 
@@ -143,17 +142,12 @@ export class TelegramBotApp {
     try {
       const response = await this.askClaudeAgent(msg.text);
       logger.info(truncLongText(`→ ${response}`));
-      const chunks = splitMessage(toTelegramMarkdownV2(response));
 
-      await this.bot.editMessageText(chunks[0], {
+      await this.bot.editMessageText(toTelegramHtml(response), {
         chat_id: chatId,
         message_id: thinkingMsg.message_id,
-        parse_mode: "MarkdownV2",
+        parse_mode: "HTML",
       });
-
-      for (const chunk of chunks.slice(1)) {
-        await this.bot.sendMessage(chatId, chunk, { parse_mode: "MarkdownV2" });
-      }
     } catch (e: unknown) {
       await this.reportAgentError({
         e,
