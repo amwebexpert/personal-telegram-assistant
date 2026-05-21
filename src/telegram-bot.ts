@@ -1,6 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { getErrorMessage } from "@lichens-innovation/ts-common";
 import { logger } from "@lichens-innovation/ts-common/logger";
+import { Tokens } from "marked";
 import TelegramBot from "node-telegram-bot-api";
 import os from "node:os";
 
@@ -132,6 +133,21 @@ export class TelegramBotApp {
     });
   }
 
+  private async sendTablePhotos(
+    chatId: number,
+    tables: Tokens.Table[],
+  ): Promise<void> {
+    if (!this.bot) return;
+
+    const options = {};
+    const fileOptions = { filename: "table.png", contentType: "image/png" };
+
+    for (const table of tables) {
+      const buffer = await tableToBuffer(table);
+      await this.bot.sendPhoto(chatId, buffer, options, fileOptions);
+    }
+  }
+
   private async handleMessage(msg: TelegramBot.Message): Promise<void> {
     if (!this.bot) return;
     if (!msg.text || msg.text.startsWith("/")) return;
@@ -162,10 +178,7 @@ export class TelegramBotApp {
         });
       }
 
-      for (const table of tables) {
-        const buffer = await tableToBuffer(table);
-        await this.bot.sendPhoto(chatId, buffer);
-      }
+      await this.sendTablePhotos(chatId, tables);
     } catch (e: unknown) {
       await this.reportAgentError({
         e,
