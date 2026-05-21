@@ -11,102 +11,27 @@ export const escapeHtml = (text: string): string =>
 const renderTokens = (tokens: Token[]): string =>
   tokens.map(renderToken).join("");
 
-const EMPTY_HEADER_CELL: Tokens.TableCell = {
-  text: "",
-  tokens: [],
-  header: true,
-  align: null,
-};
-
-const EMPTY_BODY_CELL: Tokens.TableCell = {
-  text: "",
-  tokens: [],
-  header: false,
-  align: null,
-};
-
-const getCellText = (cell: Tokens.TableCell): string => escapeHtml(cell.text);
-
-interface PadCellArgs {
-  text: string;
-  width: number;
-  align: Tokens.TableCell["align"];
-}
-
-const padCell = ({ text, width, align }: PadCellArgs): string => {
-  if (align === "right") return text.padStart(width);
-  if (align === "center") {
-    const total = width - text.length;
-    return (
-      " ".repeat(Math.floor(total / 2)) +
-      text +
-      " ".repeat(Math.ceil(total / 2))
-    );
-  }
-  return text.padEnd(width);
-};
-
-interface BuildSepCellArgs {
-  width: number;
-  align: Tokens.TableCell["align"];
-}
-
-const buildSepCell = ({ width, align }: BuildSepCellArgs): string => {
-  if (align === "center") return ":" + "-".repeat(Math.max(1, width - 2)) + ":";
-  if (align === "right") return "-".repeat(Math.max(1, width - 1)) + ":";
-  return "-".repeat(width);
-};
-
-interface FmtTableRowArgs {
-  cells: Tokens.TableCell[];
-  colWidths: number[];
-  aligns: Tokens.TableCell["align"][];
-}
-
-const fmtTableRow = ({ cells, colWidths, aligns }: FmtTableRowArgs): string => {
-  const paddedCells = colWidths.map((width, i) =>
-    padCell({
-      text: getCellText(cells[i] ?? EMPTY_BODY_CELL),
-      width,
-      align: aligns[i],
-    }),
-  );
-  const rowInner = paddedCells.join(" | ");
-  return `| ${rowInner} |`;
-};
-
-interface BuildSepRowArgs {
-  colWidths: number[];
-  aligns: Tokens.TableCell["align"][];
-}
-
-const buildSepRow = ({ colWidths, aligns }: BuildSepRowArgs): string => {
-  const sepCells = colWidths.map((width, i) =>
-    buildSepCell({ width, align: aligns[i] }),
-  );
-  const rowInner = sepCells.join(" | ");
-  return `| ${rowInner} |`;
-};
-
 const renderTable = (token: Tokens.Table): string => {
-  const colCount = token.header.length;
+  const headerCells = token.header
+    .map((cell) => `<th>${cell.text}</th>`)
+    .join("");
+  const bodyRows = token.rows.map((row) => {
+    const cells = row.map((cell) => `<td>${cell.text}</td>`).join("");
+    return `  <tr>${cells}</tr>`;
+  });
 
-  const colWidths = Array.from({ length: colCount }, (_, i) =>
-    Math.max(
-      3,
-      getCellText(token.header[i] ?? EMPTY_HEADER_CELL).length,
-      ...token.rows.map((row) => getCellText(row[i] ?? EMPTY_BODY_CELL).length),
-    ),
-  );
+  const tableLines = [
+    "<table>",
+    "  <thead>",
+    `    <tr>${headerCells}</tr>`,
+    "  </thead>",
+    "  <tbody>",
+    ...bodyRows,
+    "  </tbody>",
+    "</table>",
+  ];
 
-  const aligns = token.align;
-  const headerRow = fmtTableRow({ cells: token.header, colWidths, aligns });
-  const sepRow = buildSepRow({ colWidths, aligns });
-  const bodyRows = token.rows.map((cells) =>
-    fmtTableRow({ cells, colWidths, aligns }),
-  );
-
-  return `<pre>${[headerRow, sepRow, ...bodyRows].join("\n")}</pre>\n\n`;
+  return `<pre><code class="language-html">${escapeHtml(tableLines.join("\n"))}</code></pre>\n\n`;
 };
 
 const renderToken = (token: Token): string => {
