@@ -11,12 +11,13 @@ import {
   EnvSchema,
   loadEnv,
 } from "./load-env";
+import { tableToBuffer } from "./table-image.utils";
 import {
   clearSession,
   escapeHtml,
   loadSessionId,
+  parseAgentResponse,
   saveSessionId,
-  toTelegramHtml,
   truncLongText,
 } from "./telegram-bot.utils";
 
@@ -143,11 +144,28 @@ export class TelegramBotApp {
       const response = await this.askClaudeAgent(msg.text);
       logger.info(truncLongText(`→ ${response}`));
 
-      await this.bot.editMessageText(toTelegramHtml(response), {
-        chat_id: chatId,
-        message_id: thinkingMsg.message_id,
-        parse_mode: "HTML",
-      });
+      const { html, tables } = parseAgentResponse(response);
+
+      if (html) {
+        await this.bot.editMessageText(html, {
+          chat_id: chatId,
+          message_id: thinkingMsg.message_id,
+          parse_mode: "HTML",
+        });
+      } else if (tables.length > 0) {
+        await this.bot.deleteMessage(chatId, thinkingMsg.message_id);
+      } else {
+        await this.bot.editMessageText("(no response)", {
+          chat_id: chatId,
+          message_id: thinkingMsg.message_id,
+          parse_mode: "HTML",
+        });
+      }
+
+      for (const table of tables) {
+        const buffer = await tableToBuffer(table);
+        await this.bot.sendPhoto(chatId, buffer);
+      }
     } catch (e: unknown) {
       await this.reportAgentError({
         e,

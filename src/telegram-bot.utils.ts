@@ -1,4 +1,9 @@
 import { Token, Tokens, marked } from "marked";
+
+interface ParsedAgentResponse {
+  html: string;
+  tables: Tokens.Table[];
+}
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
@@ -137,8 +142,20 @@ const MAX_TEXT_LEN = 120;
 export const truncLongText = (text: string): string =>
   text.length > MAX_TEXT_LEN ? `${text.slice(0, MAX_TEXT_LEN)}…` : text;
 
-export const toTelegramHtml = (markdown: string): string => {
-  const rendered = renderTokens(marked.lexer(markdown));
-  const normalized = rendered.replace(/\n{3,}/g, "\n\n");
-  return normalized.trim();
+export const parseAgentResponse = (markdown: string): ParsedAgentResponse => {
+  const allTokens = marked.lexer(markdown);
+  const tables: Tokens.Table[] = [];
+
+  const nonTableTokens = allTokens.filter((token) => {
+    if (token.type === "table") {
+      tables.push(token as Tokens.Table);
+      return false;
+    }
+    return true;
+  });
+
+  const rendered = renderTokens(nonTableTokens);
+  const html = rendered.replace(/\n{3,}/g, "\n\n").trim();
+
+  return { html, tables };
 };
