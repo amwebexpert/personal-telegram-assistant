@@ -50,20 +50,20 @@ export interface LoadEnvResult {
 
 export const loadEnv = (): LoadEnvResult => {
   const envFile = resolveEnvFile();
-  // Si --env-file a déjà chargé les vars (node natif), on skip dotenv
-  if (!process.env.TELEGRAM_BOT_TOKEN) {
-    const absolutePath = path.resolve(process.cwd(), envFile);
-    if (!fs.existsSync(absolutePath)) {
-      const message = `Missing env file "${envFile}". Copy .env.example, then set ENV_FILE=${envFile}`;
+  const absolutePath = path.resolve(process.cwd(), envFile);
 
-      throw new Error(message);
-    }
-    const result = dotenv.config({ path: absolutePath });
-    if (result.error) {
-      const message = `Error loading env file "${envFile}": ${result.error.message}`;
+  if (!fs.existsSync(absolutePath)) {
+    const message = `Missing env file "${envFile}". Copy .env.example, then set ENV_FILE=${envFile}`;
 
-      throw new Error(message);
-    }
+    throw new Error(message);
+  }
+
+  // override: false — keep vars already loaded by node --env-file (PM2)
+  const result = dotenv.config({ path: absolutePath });
+  if (result.error) {
+    const message = `Error loading env file "${envFile}": ${result.error.message}`;
+
+    throw new Error(message);
   }
 
   return { envFile, profile: resolveProfileFromEnvFile(envFile) };

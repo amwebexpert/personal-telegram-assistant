@@ -6,9 +6,9 @@ export const APP_VERSION_INFO = Object.freeze({
   DESCRIPTION: "A personal Telegram AI assistant powered by Claude Agent SDK",
   REPOSITORY: "https://github.com/amwebexpert/personal-telegram-assistant",
   AUTHOR: "amwebexpert@gmail.com",
-  VERSION: "1.6.2",
+  VERSION: "1.6.3",
   VERSION_DATE: "2026-05-31",
-  VERSION_DATE_ISO: "2026-05-31T00:17:23.843Z",
+  VERSION_DATE_ISO: "2026-05-31T00:35:56.854Z",
 });
 
-export const LONG_VERSION_DATE = "1.6.2 (2026-05-31)";
+export const LONG_VERSION_DATE = "1.6.3 (2026-05-31)";

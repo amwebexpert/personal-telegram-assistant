@@ -66,7 +66,7 @@ The `--` separator is required so Yarn forwards arguments to the Node process.
 
 Each profile gets its own Claude session file under `~/.config/telegram-assistant/` (e.g. `session-user-a.json`).
 
-Use `pm2` with `ecosystem.config.cjs` so secrets stay in the Node process (via `node --env-file`) and are excluded from `~/.pm2/dump.pm2` (`filter_env`):
+Use `pm2` with `ecosystem.config.cjs`. Each instance sets `ENV_FILE`; the app loads secrets via dotenv. `filter_env` keeps `TELEGRAM_BOT_TOKEN` and `ZAPIER_MCP_URL` out of `~/.pm2/dump.pm2`:
 
 ```bash
 npm install -g pm2
@@ -79,7 +79,7 @@ pm2 startup  # follow the printed command to auto-start on login
 grep -i "TELEGRAM\|ZAPIER" ~/.pm2/dump.pm2 && echo "still present" || echo "ok"
 ```
 
-Edit `ecosystem.config.cjs` to match your env file names and app names. Each app sets `ENV_FILE` and loads vars with `interpreter_args: '--env-file=.env.profile ...'`.
+Edit `ecosystem.config.cjs` to match your env file names and app names. Each app sets `ENV_FILE` and uses `tsx` as the PM2 interpreter (PM2 does not apply string `interpreter_args` to the Node process). Secrets are loaded via dotenv inside the app; `filter_env` keeps them out of `dump.pm2`.
 
 Background process logs:
 
