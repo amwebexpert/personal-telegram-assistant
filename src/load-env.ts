@@ -50,16 +50,21 @@ export interface LoadEnvResult {
 
 export const loadEnv = (): LoadEnvResult => {
   const envFile = resolveEnvFile();
-  const absolutePath = path.resolve(process.cwd(), envFile);
+  // Si --env-file a déjà chargé les vars (node natif), on skip dotenv
+  if (!process.env.TELEGRAM_BOT_TOKEN) {
+    const absolutePath = path.resolve(process.cwd(), envFile);
+    if (!fs.existsSync(absolutePath)) {
+      const message = `Missing env file "${envFile}". Copy .env.example, then set ENV_FILE=${envFile}`;
 
-  if (!fs.existsSync(absolutePath)) {
-    throw new Error(
-      `Missing env file "${envFile}". Copy .env.example, then: yarn start -- ${envFile}`,
-    );
+      throw new Error(message);
+    }
+    const result = dotenv.config({ path: absolutePath });
+    if (result.error) {
+      const message = `Error loading env file "${envFile}": ${result.error.message}`;
+
+      throw new Error(message);
+    }
   }
-
-  const result = dotenv.config({ path: absolutePath });
-  if (result.error) throw result.error;
 
   return { envFile, profile: resolveProfileFromEnvFile(envFile) };
 };

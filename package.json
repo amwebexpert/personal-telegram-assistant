@@ -1,6 +1,6 @@
 {
   "name": "personal-telegram-assist",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "author": "amwebexpert@gmail.com",
   "repository": "https://github.com/amwebexpert/personal-telegram-assistant",
   "description": "A personal Telegram AI assistant powered by Claude Agent SDK",
